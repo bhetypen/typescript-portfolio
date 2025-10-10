@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import {Download} from "lucide-react";
 
 interface HeroGreetingProps {
     onFrontend: () => void;
@@ -10,45 +10,75 @@ export default function HeroGreeting({
                                          resumeUrl = "#",
                                      }: HeroGreetingProps) {
     return (
-        <div className="flex flex-col items-start text-white p-4">
+        <div className="flex flex-col items-start text-white p-3 sm:p-4 mt-4 md:mt-12 lg:mt-20">
             {/* MAIN HEADING (H1) */}
-            <h1 className="text-2xl sm:text-4xl font-extrabold mb-2 tracking-tighter">
+            <h1
+                className="
+            text-3xl sm:text-3xl md:text-4xl
+            font-extrabold
+            mb-2
+            tracking-tight
+        "
+            >
                 Hi, I'm Bhety
             </h1>
 
-            {/* SUBTITLE (P) */}
-            <p className="text-base sm:text-m text-gray-300 mb-1 font-light">
-                Passionate about Building clean Frontend &amp; solid Backend.
+            {/* SUBTITLE */}
+            <p
+                className="
+          text-sm sm:text-base md:text-sm
+          text-gray-300
+          mb-2 sm:mb-3
+          font-light
+        "
+            >
+                Passionate about building clean Frontend &amp; solid Backend.
             </p>
 
             {/* Call-to-Action Buttons */}
-            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-1">
-                {/* 1. Explore Panels (Orange, Base Border) */}
+            <div
+                className="
+          flex flex-col sm:flex-row
+          w-full sm:w-auto
+          space-y-2 sm:space-y-0 sm:space-x-2
+        "
+            >
+                {/* Explore Panels */}
                 <button
                     onClick={onFrontend}
-                    className="pointer-events-auto inline-flex items-center justify-center w-full sm:w-auto
-                     px-2 py-1 text-sm font-light
-                     text-white bg-transparent
-                     border border-orange-500 rounded-sm
-                     shadow-lg shadow-orange-500/20
-                     hover:bg-orange-500 hover:text-black
-                     transition duration-300 transform hover:scale-[1.02]"
+                    className="
+            pointer-events-auto
+            inline-flex items-center justify-center
+            w-full sm:w-auto
+            px-3 py-1 text-sm sm:px-3 sm:py-1 sm:text-sm md:px-2 md:py-1 md:text-xs
+            font-light
+            text-white bg-transparent
+            border border-orange-500 rounded-sm
+            shadow-lg shadow-orange-500/20
+            hover:bg-orange-500 hover:text-black
+            transition duration-300 transform hover:scale-[1.02]
+          "
                 >
                     Explore Panels
                 </button>
 
-                {/* 2. Resume Download (White, Visually Thinner Border) */}
+                {/* Resume Download */}
                 <a
                     href={resumeUrl}
                     download
-                    className="pointer-events-auto inline-flex items-center justify-center w-full sm:w-auto space-x-2
-                     px-2 py-1 text-sm font-light
-                     border border-white/70 text-white rounded-sm
-                     hover:bg-white hover:text-black
-                     transition duration-300"
+                    className="
+            pointer-events-auto
+            inline-flex items-center justify-center
+            w-full sm:w-auto
+            px-3 py-1 text-sm sm:px-3 sm:py-1 sm:text-sm md:px-2 md:py-1 md:text-xs
+            font-light
+            border border-white/70 text-white rounded-sm
+            hover:bg-white hover:text-black
+            transition duration-300
+          "
                 >
                     <span>Download Resume</span>
-                    <Download className="w-4 h-4" />
+                    <Download className="w-4 h-4 ml-1"/>
                 </a>
             </div>
         </div>

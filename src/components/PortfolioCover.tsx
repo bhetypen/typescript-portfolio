@@ -269,19 +269,18 @@ export default function PortfolioCover({
     };
 
     return (
-        <div className="relative min-h-screen flex flex-col items-center justify-center text-white">
+        <div className="flex flex-col items-center justify-center text-white">
             {toast && (
                 <div className="absolute bottom-8 bg-gray-900 px-4 py-2 rounded shadow">
                     {toast}
                 </div>
             )}
 
-            <div ref={containerRef} className="relative w-full max-w-3xl">
+            <div ref={containerRef} className="w-80 sm:w-2xl xl:max-w-3xl mx-auto">
                 {/* Hero Greeting overlay */}
                 {isReady && (
                     <div
-                        className="w-full max-w-lg px-6 sm:px-0 mb-6 pointer-events-none"
-                        //style={{ left: `${cssLeft}px`, top: `${cssTop}px`}}
+                        className="w-full sm:max-w-lg px-6 sm:px-0 mb-6 pointer-events-none"
                     >
                         <HeroGreeting onFrontend={handleFront} resumeUrl="/files/bhety-resume.pdf"/>
                     </div>
