@@ -283,7 +283,7 @@ export default function PortfolioCover({
                         className="w-full max-w-lg px-6 sm:px-0 mb-6 pointer-events-none"
                         //style={{ left: `${cssLeft}px`, top: `${cssTop}px`}}
                     >
-                        <HeroGreeting onFrontend={handleFront} resumeUrl="/files/your-resume-file.pdf"/>
+                        <HeroGreeting onFrontend={handleFront} resumeUrl="/files/bhety-resume.pdf"/>
                     </div>
                 )}
 
