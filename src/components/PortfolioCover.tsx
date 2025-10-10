@@ -46,7 +46,7 @@ const NEON: string[] = [
 ];
 
 const LABELS: Record<string, string> = {
-    "about": "About Me",
+    "about": "Games",
     "education": "Education",
     "contact-me": "Contact Me",
     "tools": "Tools",
