@@ -1,0 +1,81 @@
+// src/data/projects.ts
+
+export type Project = {
+    title: string;
+    description: string;
+    tags: string[];
+    links?: {
+        demo?: string;
+        github?: string;
+    };
+    thumbnail?: string;
+};
+
+export const fullstackProjects: Project[] = [
+    {
+        title: "LocalMarktPlatz+ (On Development)",
+        description:
+            "A marketplace for local events featuring interactive stall maps, vendor applications with approvals, realtime chat/notifications, a product catalog, invoicing (PDF + QR), and public landing pages.",
+        tags: ["Next.js", "React", "Node.js", "Express","Postgre", "Material UI", "TailwindCSS",  "Typescript", "SQL"],
+        links: {
+            demo: "https://www.loom.com/share/3cec4809cead4dce8294da9fce138573",
+            github: "https://gitlab.com/personal-project3992315/local_marktplatz-plus",
+        },
+        thumbnail: "/images/marketplace.png",
+    },
+    {
+        title: "Linz Souvenir Shop E-Commerce",
+        description:
+            "Linz Souvenir is a clean, responsive e-commerce site showcasing locally inspired gifts, featuring intuitive browsing, product details, and a smooth cart experience.",
+        tags: ["Vue.js", "MongoDB", "Bootstrap", "Node.js", "Express", "Docker", "Caddy"],
+        links: {
+            demo: "https://linzsouvenir.bhetyhub.com/",
+            github: "https://github.com/bhetypen/linzsouvenir-app",
+        },
+        thumbnail: "/images/ecommerce.png",
+    }
+];
+
+export const frontendProjects: Project[] = [
+    {
+        title: "Quize — Interactive Quiz",
+        description:
+            "Quize is a fun, responsive quiz game that pulls questions from a public API, offering multiple categories and instant feedback for an engaging experience across devices.",
+        tags: ["HTML", "CSS", "Javascript"],
+        links: {
+            demo: "https://quize.bhetycodes.com/",
+        },
+        thumbnail: "/images/quiz.png",
+    },
+    {
+        title: "Landing Page",
+        description:
+            "Wanderly Travel is a responsive landing page for a travel booking website, built with HTML, CSS to showcase destinations with a clean, modern design. Note: no functions just a frontend showcase.",
+        tags: ["HTML", "CSS", "Canva"],
+        links: {
+            demo: "https://codersbay-html-css-3.bhetycodeport.tech/"
+        },
+        thumbnail: "/images/wanderly-site.png",
+    },
+    {
+        title: "NoCodeWebsiteBuilder",
+        description:
+            "NoCode Website Builder is a simple, responsive platform that allows users to create websites from prebuilt templates by customizing text and images. The layout is fixed, ensuring clean design consistency while making website creation quick and code-free.",
+        tags: ["React", "Redux", "Tailwind", "IndexDB"],
+        links: {
+            demo: "https://nocodewebsitebuilder.bhetycodeport.tech/",
+        },
+        thumbnail: "/images/websitebuilder.png",
+    },
+    {
+        title: "BhetyCodes Portfolio (built with Nuxt)",
+        description:
+            "A modern, dynamic portfolio site built using Nuxt that showcases my projects, skills, and design aesthetics. It demonstrates clean layout, performance optimization, and ease of content management through a server-rendered / statically generated Vue stack.",
+        tags: ["Nuxt", "JavaScript", "Tailwind", "shadcn-nuxt"],
+        links: {
+            demo: "https://bhetycodes.online/",
+            github: "https://github.com/bhetypen/nuxt-portfolio",
+        },
+        thumbnail: "/images/portfolio-nuxt.png",
+    },
+];
