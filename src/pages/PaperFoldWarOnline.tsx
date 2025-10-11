@@ -17,12 +17,42 @@ type Phase =
 
 type Event =
     | { type: "place"; player: 1 | 2; shot: Pt }
-    | { type: "scratch"; player: 1 | 2; shot: Pt } // Now includes shot
+    | { type: "scratch"; player: 1 | 2; shot: Pt }
     | { type: "reset" };
+
+type BoardConfig = {
+    width: number;
+    height: number;
+    foldX: number;
+    radius: number;
+};
+
+//setting up the board config for mobile
+function getBoardConfig(): BoardConfig {
+    const isMobile = window.innerWidth < 600; // breakpoint
+    const width = isMobile ? 320 : 900;
+    const height = isMobile ? 260 : 520;
+    const foldX = width / 2;
+    const radius = isMobile ? 5 : 8;
+
+    return { width, height, foldX, radius };
+}
+
 
 export default function PaperFoldWarOnline() {
     const {roomId: roomFromUrl} = useParams();
     const [roomId, setRoomId] = useState<string | null>(roomFromUrl ?? null);
+    const [board, setBoard] = useState<BoardConfig>(getBoardConfig());
+
+    useEffect(() => {
+        function handleResize() {
+            setBoard(getBoardConfig());
+        }
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
+    const { width, height, foldX, radius } = board
 
     // Keep state in sync if user navigates between rooms
     useEffect(() => {
@@ -30,10 +60,10 @@ export default function PaperFoldWarOnline() {
     }, [roomFromUrl]);
 
     // Board config
-    const width = 900;
-    const height = 520;
-    const foldX = width / 2;
-    const radius = 8;
+    //const width = 900;
+    //const height = 520;
+    //const foldX = width / 2;
+    //const radius = 8;
 
     const playerId = useMemo(() => crypto.randomUUID(), []);
 
