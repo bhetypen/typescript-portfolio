@@ -157,7 +157,7 @@ export default function PaperFoldWarOnline() {
     const resolveScratch = useCallback((player: 1 | 2, shot: Pt, currentP1Circles: Pt[], currentP2Circles: Pt[]) => {
         const m = mirrorAcrossFold(shot);
 
-        // We use the passed-in state arrays for accurate, immediate resolution
+        //passed-in state arrays for accurate, immediate resolution
         const enemy = player === 1 ? currentP2Circles : currentP1Circles;
         const hit = enemy.some((c) => dist2(c, m) <= (2 * radius) ** 2);
 
@@ -192,7 +192,7 @@ export default function PaperFoldWarOnline() {
             setLastShot(ev.shot);
             setMirror(mirrorAcrossFold(ev.shot));
             if (ev.player === 1) {
-                // IMPORTANT: Use functional updates to ensure we're using the latest state
+                // IMPORTANT: Use functional updates to ensure the latest state is use
                 setP1Circles((prev) => [...prev, ev.shot]);
                 setPhase("P1_READY");
             } else {
@@ -253,7 +253,7 @@ export default function PaperFoldWarOnline() {
         if (!lastShot) return; // safety—should exist after place
 
         // Local State Update
-        // Use the current state arrays directly since we are in the local action scope
+        // Use the current state arrays directly since it is in the local action scope
         resolveScratch(role, lastShot, p1Circles, p2Circles);
 
         // Broadcast (must include the shot for the remote client to resolve)
@@ -292,6 +292,7 @@ export default function PaperFoldWarOnline() {
         ctx.stroke();
         ctx.setLineDash([]);
 
+        //shows grid to spectator and when the game is over
         if (isGameOver || role === null) {
             // Grid
             ctx.strokeStyle = "#1a2145";
@@ -323,7 +324,7 @@ export default function PaperFoldWarOnline() {
             }
         };
 
-        // Reveal only your own circles (spectators see none)
+        // Reveal only own circles (spectators see none)
         //if (role === 1) drawCircles(p1Circles, "#5ee1ff");
         //(if (role === 2) drawCircles(p2Circles, "#ffa9f1");
         /*
@@ -344,19 +345,19 @@ export default function PaperFoldWarOnline() {
         // --- FINALIZED CIRCLE DRAWING LOGIC ---
 
         // Player 1 Circles
-        // Show if: I am P1, OR it's the global reveal, OR I am a spectator.
+        // Show if: P1, OR it's the global reveal, OR spectator.
         if (role === 1 || isGlobalRevealPhase || role === null) {
             drawCircles(p1Circles, "#5ee1ff");
         }
 
         // Player 2 Circles
-        // Show if: I am P2, OR it's the global reveal, OR I am a spectator.
+        // Show if: P2, OR it's the global reveal, OR spectator.
         if (role === 2 || isGlobalRevealPhase || role === null) {
             drawCircles(p2Circles, "#ffa9f1");
         }
 
 
-        // Hover preview for your placement turn
+        // Hover preview for placement turn
         const yourPlacementTurn =
             (phase === "P1_PLACE" && role === 1) || (phase === "P2_PLACE" && role === 2);
         if (yourPlacementTurn && hover && inHalf(hover, role!)) {
