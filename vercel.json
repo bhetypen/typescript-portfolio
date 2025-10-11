@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/games/paper-fold-war/online/(.*)", "destination": "/game.html" },
+    { "source": "/games/paper-fold-war/online", "destination": "/game.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

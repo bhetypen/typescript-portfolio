@@ -65,9 +65,9 @@ export default function Privacy() {
                             Questions about privacy? Email me at{" "}
                             <a
                                 className="underline underline-offset-4 hover:text-white"
-                                href="mailto:your@email.com"
+                                href="mailto:bhety.spiel@gmail.com"
                             >
-                                your@email.com
+                                bhety.spiel@gmail.com
                             </a>
                             .
                         </p>
