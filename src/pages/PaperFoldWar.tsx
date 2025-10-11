@@ -14,13 +14,43 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  * - Overlap = distance between centers <= 2 * radius (touching counts).
  * - Tip: Pass the device after pressing Scratch to keep circles secret.
  */
+type BoardConfig = {
+    width: number;
+    height: number;
+    foldX: number;
+    radius: number;
+};
+
+//setting up the board config for mobile
+function getBoardConfig(): BoardConfig {
+    const isMobile = window.innerWidth < 600; // breakpoint
+    const width = isMobile ? 320 : 900;
+    const height = isMobile ? 260 : 520;
+    const foldX = width / 2;
+    const radius = isMobile ? 5 : 8;
+
+    return { width, height, foldX, radius };
+}
 
 export default function PaperFoldWar() {
+
+    const [board, setBoard] = useState<BoardConfig>(getBoardConfig());
+
+    useEffect(() => {
+        function handleResize() {
+            setBoard(getBoardConfig());
+        }
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
+    const { width, height, foldX, radius } = board
+
     // Board config
-    const width = 900;
-    const height = 520;
-    const foldX = width / 2;
-    const radius = 14; // circle radius (px)
+    //const width = 900;
+    //const height = 520;
+    //const foldX = width / 2;
+    //const radius = 14; // circle radius (px)
 
     type Pt = { x: number; y: number };
 
