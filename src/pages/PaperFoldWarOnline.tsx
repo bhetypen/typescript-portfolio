@@ -16,10 +16,12 @@ type Phase =
     | "WIN_P1"
     | "WIN_P2";
 
+/*
 type Event =
     | { type: "place"; player: 1 | 2; shot: Pt }
     | { type: "scratch"; player: 1 | 2; shot: Pt }
     | { type: "reset" };
+*/
 
 type BoardConfig = {
     width: number;
@@ -60,6 +62,17 @@ function getBoardConfig(): BoardConfig {
     }
     return { width, height, foldX: width / 2, radius };
 }
+
+type NPt = { nx: number; ny: number };
+
+const toN = (pt: Pt, w: number, h: number): NPt => ({ nx: pt.x / w, ny: pt.y / h });
+const fromN = (n: NPt, w: number, h: number): Pt => ({ x: n.nx * w, y: n.ny * h });
+
+
+type Event =
+    | { type: "place"; player: 1 | 2; shotN: NPt }
+    | { type: "scratch"; player: 1 | 2; shotN: NPt }
+    | { type: "reset" };
 
 
 
@@ -257,14 +270,15 @@ export default function PaperFoldWarOnline() {
         }
 
         if (ev.type === "place") {
-            setLastShot(ev.shot);
-            setMirror(mirrorAcrossFold(ev.shot));
+            const shot = fromN(ev.shotN, width, height);
+            setLastShot(shot);
+            setMirror(mirrorAcrossFold(shot));
             if (ev.player === 1) {
                 // IMPORTANT: Use functional updates to ensure the latest state is use
-                setP1Circles((prev) => [...prev, ev.shot]);
+                setP1Circles((prev) => [...prev, shot]);
                 setPhase("P1_READY");
             } else {
-                setP2Circles((prev) => [...prev, ev.shot]);
+                setP2Circles((prev) => [...prev, shot]);
                 setPhase("P2_READY");
             }
         }
@@ -272,15 +286,16 @@ export default function PaperFoldWarOnline() {
         if (ev.type === "scratch") {
             // Use the functional update syntax to get the latest circle state for scratch resolution
             // This ensures accuracy even if a 'place' or 'reset' was slightly delayed
+            const shot = fromN(ev.shotN, width, height);
             setP1Circles(prevP1 => {
                 setP2Circles(prevP2 => {
-                    resolveScratch(ev.player, ev.shot, prevP1, prevP2);
+                    resolveScratch(ev.player, shot, prevP1, prevP2);
                     return prevP2; // return original P2 array
                 });
                 return prevP1; // return original P1 array
             });
         }
-    }, [resolveScratch]); // Depend on resolveScratch
+    }, [resolveScratch, width, height]); // Depend on resolveScratch
 
     // --- Local UI Handlers ---
     /*
@@ -359,6 +374,8 @@ export default function PaperFoldWarOnline() {
         const shot = { x, y };
         if (!inHalf(shot, role)) return;
 
+        const shotN = toN(shot, width, height);
+
         setLastShot(shot);
         setMirror(mirrorAcrossFold(shot));
 
@@ -373,8 +390,9 @@ export default function PaperFoldWarOnline() {
         channelRef.current?.send({
             type: "broadcast",
             event: "game",
-            payload: { type: "place", player: role, shot },
+            payload: { type: "place", player: role, shotN }, // send normalized
         });
+
     };
 
 
@@ -394,12 +412,14 @@ export default function PaperFoldWarOnline() {
         // Use the current state arrays directly since it is in the local action scope
         resolveScratch(role, lastShot, p1Circles, p2Circles);
 
+        const shotN = toN(lastShot, width, height);
         // Broadcast (must include the shot for the remote client to resolve)
         channelRef.current?.send({
             type: "broadcast",
             event: "game",
-            payload: {type: "scratch", player: role, shot: lastShot}
+            payload: { type: "scratch", player: role, shotN },
         });
+
     };
 
     // Drawing
