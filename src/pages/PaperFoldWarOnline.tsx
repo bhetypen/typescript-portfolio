@@ -99,7 +99,7 @@ function getBoardConfig(vwOverride?: number, vhOverride?: number): BoardConfig {
 
     // Clamp sizes (safety)
     const MIN_W = 320, MIN_H = 200;
-    const MAX_W = 1400, MAX_H = 900;
+    const MAX_W = 900, MAX_H = 520;
     w = Math.max(MIN_W, Math.min(MAX_W, w));
     h = Math.max(MIN_H, Math.min(MAX_H, h));
 
@@ -801,7 +801,9 @@ export default function PaperFoldWarOnline() {
                 </div>
             )}
 
-            <div className="relative rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/10 board-wrap">
+            <div className="relative rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/10"
+                 style={{ width: width + "px", height: height + "px" }}
+            >
                 <canvas
                     ref={canvasRef}
                     width={width}
