@@ -44,7 +44,7 @@ function getBoardConfig(): BoardConfig {
 
 function getBoardConfig(): BoardConfig {
     if (typeof window === "undefined") {
-        return { width: 900, height: 520, foldX: 450, radius: 8 };
+        return { width: 600, height: 320, foldX: 300, radius: 7 };
     }
     const isMobile = window.innerWidth < 750;
     const isLandscape =
@@ -54,9 +54,9 @@ function getBoardConfig(): BoardConfig {
 
     let width: number, height: number, radius: number;
     if (isMobile && isLandscape) {
-        width = 480; height = 280; radius = 6;
+        width = 480; height = 280; radius = 5;
     } else if (isMobile) {
-        width = 320; height = 260; radius = 5;
+        width = 320; height = 260; radius = 4;
     } else {
         width = 900; height = 520; radius = 8;
     }
