@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState, useCallback} from "react";
 import {supabase} from "../lib/supabase";
 import {useParams} from "react-router-dom";
 import RoomCreationPage from "@/pages/RoomCreationPage.tsx";
+import { QRCodeCanvas } from "qrcode.react";
 
 // Types
 type Pt = { x: number; y: number };
@@ -28,6 +29,7 @@ type BoardConfig = {
 };
 
 //setting up the board config for mobile
+/*
 function getBoardConfig(): BoardConfig {
     const isMobile = window.innerWidth < 600; // breakpoint
     const width = isMobile ? 320 : 900;
@@ -36,7 +38,29 @@ function getBoardConfig(): BoardConfig {
     const radius = isMobile ? 5 : 8;
 
     return { width, height, foldX, radius };
+}*/
+
+function getBoardConfig(): BoardConfig {
+    if (typeof window === "undefined") {
+        return { width: 900, height: 520, foldX: 450, radius: 8 };
+    }
+    const isMobile = window.innerWidth < 700;
+    const isLandscape =
+        typeof window.matchMedia === "function"
+            ? window.matchMedia("(orientation: landscape)").matches
+            : window.innerWidth > window.innerHeight;
+
+    let width: number, height: number, radius: number;
+    if (isMobile && isLandscape) {
+        width = 480; height = 280; radius = 6;
+    } else if (isMobile) {
+        width = 320; height = 260; radius = 5;
+    } else {
+        width = 900; height = 520; radius = 8;
+    }
+    return { width, height, foldX: width / 2, radius };
 }
+
 
 
 export default function PaperFoldWarOnline() {
@@ -44,13 +68,44 @@ export default function PaperFoldWarOnline() {
     const [roomId, setRoomId] = useState<string | null>(roomFromUrl ?? null);
     const [board, setBoard] = useState<BoardConfig>(getBoardConfig());
 
+    const [showQR, setShowQR] = useState(false);
+
+
+    /*
     useEffect(() => {
         function handleResize() {
             setBoard(getBoardConfig());
         }
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
+    }, []);*/
+
+    useEffect(() => {
+        let raf = 0;
+        const schedule = () => {
+            if (!raf) raf = requestAnimationFrame(() => {
+                raf = 0;
+                setBoard(getBoardConfig());
+            });
+        };
+
+        const onResize = () => schedule();
+        const onOrientation = () => schedule();
+
+        window.addEventListener("resize", onResize, { passive: true });
+        window.addEventListener("orientationchange", onOrientation, { passive: true });
+
+        const vv = (window as any).visualViewport as VisualViewport | undefined;
+        if (vv) vv.addEventListener("resize", onResize, { passive: true });
+
+        return () => {
+            if (raf) cancelAnimationFrame(raf);
+            window.removeEventListener("resize", onResize);
+            window.removeEventListener("orientationchange", onOrientation);
+            if (vv) vv.removeEventListener("resize", onResize);
+        };
     }, []);
+
 
     const { width, height, foldX, radius } = board
 
@@ -82,6 +137,13 @@ export default function PaperFoldWarOnline() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+    //unified pointer handlers
+    const pointerDownRef = useRef<{x:number;y:number;t:number}|null>(null);
+    const TAP_MS = 250;   // max tap duration
+    const TAP_MOVE = 14;  // max movement in px
+    const TAP_MOVE_SQ = TAP_MOVE * TAP_MOVE;
+
+
     // Helpers
     const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
     const dist2 = (a: Pt, b: Pt) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
@@ -100,6 +162,12 @@ export default function PaperFoldWarOnline() {
         setMirror(null);
         if (broadcastAlso) channelRef.current?.send({type: "broadcast", event: "game", payload: {type: "reset"}});
     }, []);
+
+    //useEffect for QRCode
+    useEffect(() => {
+        setShowQR(peers.length < 2); // show while waiting, hide once P2 joins
+    }, [peers.length]);
+
 
     // --- Supabase channel setup (Includes fix for role race condition) ---
     useEffect(() => {
@@ -215,7 +283,7 @@ export default function PaperFoldWarOnline() {
     }, [resolveScratch]); // Depend on resolveScratch
 
     // --- Local UI Handlers ---
-
+    /*
     const handlePlace = (e: React.MouseEvent) => {
         if (!(phase === "P1_PLACE" || phase === "P2_PLACE")) return;
         if (!role) return; // spectators can't act
@@ -242,9 +310,79 @@ export default function PaperFoldWarOnline() {
 
         // Broadcast
         channelRef.current?.send({type: "broadcast", event: "game", payload: {type: "place", player: role, shot}});
+    }; */
+
+    const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+        setHover({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     };
 
+    const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+        pointerDownRef.current = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+            t: Date.now(),
+        };
+    };
+
+
+    const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        if (waitingForP2) return;
+        if (!e.isPrimary) return; // ignore secondary pointers/mouse buttons
+
+        const start = pointerDownRef.current;
+        pointerDownRef.current = null;
+
+        const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+        const x = clamp(e.clientX - rect.left, 0, width);
+        const y = clamp(e.clientY - rect.top, 0, height);
+        setHover({ x, y });
+
+        if (!start) return;
+
+        const dt = Date.now() - start.t;
+        const dx = x - start.x;
+        const dy = y - start.y;
+        const moved2 = dx * dx + dy * dy;
+
+        // use constants
+        if (dt > TAP_MS || moved2 > TAP_MOVE_SQ) return; // not a tap
+
+        // placement logic
+        if (!(phase === "P1_PLACE" || phase === "P2_PLACE")) return;
+        if (!role) return;
+        const myTurn =
+            (role === 1 && phase === "P1_PLACE") || (role === 2 && phase === "P2_PLACE");
+        if (!myTurn) return;
+
+        const shot = { x, y };
+        if (!inHalf(shot, role)) return;
+
+        setLastShot(shot);
+        setMirror(mirrorAcrossFold(shot));
+
+        if (role === 1) {
+            setP1Circles(prev => [...prev, shot]);
+            setPhase("P1_READY");
+        } else {
+            setP2Circles(prev => [...prev, shot]);
+            setPhase("P2_READY");
+        }
+
+        channelRef.current?.send({
+            type: "broadcast",
+            event: "game",
+            payload: { type: "place", player: role, shot },
+        });
+    };
+
+
+
+
     const handleScratch = () => {
+        if (waitingForP2) return;
+
         if (!(phase === "P1_READY" || phase === "P2_READY")) return;
         if (!role) return;
         const myTurn =
@@ -401,10 +539,12 @@ export default function PaperFoldWarOnline() {
         }
     }, [phase, p1Circles, p2Circles, hover, lastShot, mirror, role, radius, width, height, foldX]);
 
+    /*
     const onMove = (e: React.MouseEvent) => {
         const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
         setHover({x: e.clientX - rect.left, y: e.clientY - rect.top});
-    };
+    };*/
+
 
     // UI labels
     const labelPhase = () => {
@@ -467,6 +607,9 @@ export default function PaperFoldWarOnline() {
     const waitingForP2 = peers.length < 2;
 
 
+
+
+
     return (
         <div className="w-full min-h-screen flex flex-col items-center justify-start gap-4 p-6 bg-[#0a0e1c] text-white">
             <h1 className="text-2xl font-semibold tracking-tight">Paper Fold War — Online</h1>
@@ -498,6 +641,12 @@ export default function PaperFoldWarOnline() {
                 <button onClick={shareRoom} className="text-xs px-2 py-1 rounded bg-indigo-500/90 hover:bg-indigo-600">
                     Share
                 </button>
+                <button
+                    onClick={() => setShowQR((s) => !s)}
+                    className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15"
+                >
+                    {showQR ? "Hide QR" : "Show QR"}
+                </button>
             </div>
 
             {waitingForP2 && (
@@ -506,16 +655,42 @@ export default function PaperFoldWarOnline() {
                 </div>
             )}
 
-            <div className="rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/10">
+            <div className="relative rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/10">
                 <canvas
                     ref={canvasRef}
                     width={width}
                     height={height}
-                    onMouseMove={onMove}
-                    onClick={handlePlace}
-                    className={`block ${yourTurn ? "cursor-crosshair" : "cursor-not-allowed opacity-90"}`}
+                    onPointerMove={onPointerMove}
+                    onPointerDown={onPointerDown}
+                    onPointerUp={onPointerUp}
+                    className={`block ${yourTurn ? "cursor-crosshair" : "cursor-not-allowed opacity-90"} ${waitingForP2 ? "pointer-events-none opacity-60" : ""}`}
+                    style={{touchAction: "manipulation"}}
                 />
+
+                {showQR && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-4">
+                        <div className="bg-white rounded-xl p-4 text-black shadow-xl flex flex-col items-center gap-2">
+                            <QRCodeCanvas
+                                value={shareUrl}
+                                size={220}
+                                marginSize={4}
+                                level="M"
+                            />
+                            <div className="text-center text-sm">
+                                Scan to join this room
+                                <div className="text-xs text-gray-600 break-all mt-1">{shareUrl}</div>
+                            </div>
+                            <button
+                                onClick={() => navigator.clipboard.writeText(shareUrl)}
+                                className="mt-2 text-xs px-2 py-1 rounded bg-black/10 hover:bg-black/20"
+                            >
+                                Copy link
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
+
 
             <div className="flex gap-3 mt-2">
                 <button onClick={() => handleReset(true)}

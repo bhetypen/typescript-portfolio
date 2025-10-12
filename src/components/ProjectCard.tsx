@@ -62,7 +62,7 @@ export default function ProjectCard({
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >
-                                GitHub
+                                GitRepo
                             </a>
                         )}
                     </div>
