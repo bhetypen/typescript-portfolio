@@ -54,14 +54,14 @@ function fitByAspect(boxW: number, boxH: number, aspect: number) {
     return { w: Math.round(w), h: Math.round(h) };
 }
 
-function getBoardConfig(): BoardConfig {
+function getBoardConfig(vwOverride?: number, vhOverride?: number): BoardConfig {
     if (typeof window === "undefined") {
         return { width: 900, height: 520, foldX: 450, radius: 8 };
     }
 
     const vv = (window as any).visualViewport as VisualViewport | undefined;
-    const vw = vv ? vv.width : window.innerWidth;
-    const vh = vv ? vv.height : window.innerHeight;
+    const vw = vwOverride ?? (vv ? vv.width : window.innerWidth);
+    const vh = vhOverride ?? (vv ? vv.height : window.innerHeight);
 
     const shortest = Math.min(vw, vh);
     //const longest  = Math.max(vw, vh);
@@ -122,64 +122,6 @@ function getBoardConfig(): BoardConfig {
 }
 
 
-
-/*
-
-function getBoardConfig(): BoardConfig {
-    if (typeof window === "undefined") {
-        return { width: 600, height: 320, foldX: 300, radius: 7 };
-    }
-
-    // Viewport (prefer visualViewport on mobile)
-    const vv = (window as any).visualViewport as VisualViewport | undefined;
-    const vw = vv ? Math.round(vv.width) : window.innerWidth;
-    const vh = vv ? Math.round(vv.height) : window.innerHeight;
-
-    const shortest = Math.min(vw, vh);
-    const longest  = Math.max(vw, vh);
-    const landscape = vw > vh;
-
-    // Breakpoints by shortest side (tweak as you like)
-    // <480: phone, <768: small tablet / phablet, <1024: tablet, <1440: laptop, >=1440: wide desktop
-    let width: number;
-    let height: number;
-    let radius: number;
-
-    if (shortest < 480) {
-        // PHONE
-        if (landscape) { width = 520; height = 320; radius = 5; }
-        else           { width = 340; height = 260; radius = 4; }
-    } else if (shortest < 768) {
-        // SMALL TABLET / PHABLET
-        if (landscape) { width = 640; height = 380; radius = 6; }
-        else           { width = 420; height = 320; radius = 5; }
-    } else if (shortest < 1024) {
-        // TABLET
-        if (landscape) { width = 820; height = 480; radius = 7; }
-        else           { width = 600; height = 400; radius = 6; }
-    } else if (shortest < 1440) {
-        // LAPTOP / DESKTOP COMPACT
-        if (landscape) { width = 900; height = 520; radius = 8; }
-        else           { width = 760; height = 520; radius = 7; } // tall window
-    } else {
-        // WIDE DESKTOP / ULTRAWIDE
-        // Optionally scale up slightly but keep aspect reasonable
-        const scale = Math.min(1.25, longest / 1920); // gentle cap
-        width  = Math.round(900 * scale + 200);  // ~1100–1325
-        height = Math.round(520 * scale + 120);  // ~640–770
-        radius = Math.round(8 * scale);          // ~10–12
-    }
-
-    // Helpful logs while tuning
-    console.log("[getBoardConfig]", { vw, vh, shortest, landscape, width, height, radius });
-
-
-
-    return { width, height, foldX: width / 2, radius };
-}
-
- */
-
 type NPt = { nx: number; ny: number };
 
 const toN = (pt: Pt, w: number, h: number): NPt => ({ nx: pt.x / w, ny: pt.y / h });
@@ -200,6 +142,7 @@ export default function PaperFoldWarOnline() {
 
     const [showQR, setShowQR] = useState(false);
 
+    const lockedViewportRef = useRef<null | { mode: "portrait" | "landscape"; vw: number; vh: number }>(null);
 
     /*
     useEffect(() => {
@@ -209,7 +152,7 @@ export default function PaperFoldWarOnline() {
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
     }, []);*/
-
+    /*
     useEffect(() => {
         let raf = 0;
         const schedule = () => {
@@ -235,6 +178,75 @@ export default function PaperFoldWarOnline() {
             if (vv) vv.removeEventListener("resize", onResize);
         };
     }, []);
+    */
+
+    useEffect(() => {
+        let raf = 0;
+
+        const mode = (): "portrait" | "landscape" =>
+            (window.screen.orientation?.type?.startsWith("landscape") || window.innerWidth > window.innerHeight)
+                ? "landscape" : "portrait";
+
+        const recompute = (forceUnlock = false) => {
+            if (!raf) raf = requestAnimationFrame(() => {
+                raf = 0;
+
+                if (forceUnlock) lockedViewportRef.current = null;
+
+                const m = mode();
+
+                if (m === "landscape") {
+                    // Lock once per landscape session
+                    if (!lockedViewportRef.current || lockedViewportRef.current.mode !== "landscape") {
+                        // Use screen dims for stability (don’t change with URL bar)
+                        const sw = window.screen.width;
+                        const sh = window.screen.height;
+                        const vw = Math.max(sw, sh);
+                        const vh = Math.min(sw, sh);
+                        lockedViewportRef.current = { mode: "landscape", vw, vh };
+                        // helpful debug
+                        console.log("[lock landscape]", { vw, vh, sw, sh });
+                    }
+                    const { vw, vh } = lockedViewportRef.current;
+                    setBoard(getBoardConfig(vw, vh));
+                } else {
+                    // Portrait: unlock & compute normally
+                    lockedViewportRef.current = { mode: "portrait", vw: window.innerWidth, vh: window.innerHeight };
+                    setBoard(getBoardConfig());
+                }
+            });
+        };
+
+        // Ignore tiny resizes while *not* locked (helps portrait too)
+        let lastVW = 0, lastVH = 0;
+        const onResize = () => {
+            if (lockedViewportRef.current?.mode === "landscape") return; // ignore jitter in landscape
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const delta = Math.abs(vw - lastVW) + Math.abs(vh - lastVH);
+            if (delta < 32) return; // ignore tiny changes
+            lastVW = vw; lastVH = vh;
+            recompute();
+        };
+
+        const onOrientation = () => recompute(true); // unlock and recalc
+
+        window.addEventListener("resize", onResize, { passive: true });
+        window.addEventListener("orientationchange", onOrientation, { passive: true });
+
+        const vv = (window as any).visualViewport as VisualViewport | undefined;
+        if (vv) vv.addEventListener("resize", onResize, { passive: true });
+
+        // Initial compute (locks if already landscape)
+        recompute();
+
+        return () => {
+            if (raf) cancelAnimationFrame(raf);
+            window.removeEventListener("resize", onResize);
+            window.removeEventListener("orientationchange", onOrientation);
+            if (vv) vv.removeEventListener("resize", onResize);
+        };
+    }, []);
+
 
 
     const { width, height, foldX, radius } = board
@@ -789,7 +801,7 @@ export default function PaperFoldWarOnline() {
                 </div>
             )}
 
-            <div className="relative rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/10">
+            <div className="relative rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/10 board-wrap">
                 <canvas
                     ref={canvasRef}
                     width={width}

@@ -120,4 +120,8 @@
   }
 }
 
+/* wrapping board for stable viewport*/
+.board-wrap { min-height: 100svh; } /* uses "small viewport height" unit */
+
+
 
