@@ -286,8 +286,7 @@ export default function PortfolioCover({
                     </div>
                 )}
 
-                <Stage width={stageW} height={stageH} scaleX={scale} scaleY={scale} style={{cursor}}
-                >
+                <Stage width={stageW} height={stageH} scaleX={scale} scaleY={scale} style={{cursor}} draggable={false}                >
                     {/* Background */}
                     <Layer listening={false}>
                         {img && <KonvaImage image={img} width={natural.w} height={natural.h}/>}
@@ -361,10 +360,14 @@ export default function PortfolioCover({
                                         opacity={hoverId === h.id ? 0.9 : 0.7}         // brighter on hover
                                         shadowBlur={hoverId === h.id ? 20 : 12}        // stronger glow on hover
                                         shadowOpacity={hoverId === h.id ? 0.9 : 0.6}   // slightly stronger halo
+                                        onTap={hotspotAction(h.id)}
                                         onTouchStart={() => setHoverId(h.id)}          // mobile feedback
                                         onTouchEnd={() => setHoverId(null)}
 
                                         onClick={hotspotAction(h.id)}
+
+
+
                                     />
                                     <Text
                                         ref={(node) => {
