@@ -46,7 +46,7 @@ function getBoardConfig(): BoardConfig {
     if (typeof window === "undefined") {
         return { width: 900, height: 520, foldX: 450, radius: 8 };
     }
-    const isMobile = window.innerWidth < 700;
+    const isMobile = window.innerWidth < 750;
     const isLandscape =
         typeof window.matchMedia === "function"
             ? window.matchMedia("(orientation: landscape)").matches
@@ -394,9 +394,6 @@ export default function PaperFoldWarOnline() {
         });
 
     };
-
-
-
 
     const handleScratch = () => {
         if (waitingForP2) return;
