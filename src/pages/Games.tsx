@@ -17,7 +17,7 @@ const GAMES: Game[] = [
     {
         slug: "paper-fold-war",
         title: "Paper Fold War",
-        blurb: "The art of the scratch-card war. Predict your foe's move while hiding your own target in this unique, circular game of offense and defense.",
+        blurb: "(Currently in Dev) The art of the scratch-card war. Predict your foe's move while hiding your own target in this unique, circular game of offense and defense.",
         route: "/games/paper-fold-war",
         status: "Playable",
         tech: ["React", "Canvas", "TypeScript"],
