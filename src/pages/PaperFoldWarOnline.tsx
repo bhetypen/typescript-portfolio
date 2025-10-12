@@ -42,26 +42,143 @@ function getBoardConfig(): BoardConfig {
     return { width, height, foldX, radius };
 }*/
 
+// Fit a target aspect ratio (w/h) inside a bounding box
+function fitByAspect(boxW: number, boxH: number, aspect: number) {
+    // aspect >= 1 means width >= height (landscape-ish)
+    let w = boxW;
+    let h = w / aspect;
+    if (h > boxH) {
+        h = boxH;
+        w = h * aspect;
+    }
+    return { w: Math.round(w), h: Math.round(h) };
+}
+
+function getBoardConfig(): BoardConfig {
+    if (typeof window === "undefined") {
+        return { width: 900, height: 520, foldX: 450, radius: 8 };
+    }
+
+    const vv = (window as any).visualViewport as VisualViewport | undefined;
+    const vw = vv ? vv.width : window.innerWidth;
+    const vh = vv ? vv.height : window.innerHeight;
+
+    const shortest = Math.min(vw, vh);
+    //const longest  = Math.max(vw, vh);
+    const portraitViewport = vh > vw;
+
+    // Buckets by shortest side (device class)
+    // <480: phone, <768: small tablet, <1024: tablet, else: desktop
+    let device: "phone" | "s-tablet" | "tablet" | "desktop";
+    if (shortest < 480) device = "phone";
+    else if (shortest < 768) device = "s-tablet";
+    else if (shortest < 1024) device = "tablet";
+    else device = "desktop";
+
+    // Choose aspect per device/orientation — always >= 1 (height <= width)
+    // You can tweak these numbers to taste.
+    const ASPECTS = {
+        phone:      { portrait: 1.30, landscape: 1.70 },
+        "s-tablet": { portrait: 1.35, landscape: 1.70 },
+        tablet:     { portrait: 1.45, landscape: 1.72 },
+        desktop:    { portrait: 1.60, landscape: 1.73 }, // tall windows vs normal
+    } as const;
+
+    const aspect =
+        device === "phone"      ? (portraitViewport ? ASPECTS.phone.portrait      : ASPECTS.phone.landscape) :
+            device === "s-tablet"   ? (portraitViewport ? ASPECTS["s-tablet"].portrait: ASPECTS["s-tablet"].landscape) :
+                device === "tablet"     ? (portraitViewport ? ASPECTS.tablet.portrait     : ASPECTS.tablet.landscape) :
+                    (portraitViewport ? ASPECTS.desktop.portrait    : ASPECTS.desktop.landscape);
+
+    // Limit how much of the viewport the board may occupy
+    const maxW = vw * (portraitViewport ? 0.92 : 0.94);
+    const maxH = vh * (portraitViewport ? 0.58 : 0.78);
+
+    // Fit board to box using chosen aspect
+    let { w, h } = fitByAspect(maxW, maxH, aspect);
+
+    // Clamp sizes (safety)
+    const MIN_W = 320, MIN_H = 200;
+    const MAX_W = 1400, MAX_H = 900;
+    w = Math.max(MIN_W, Math.min(MAX_W, w));
+    h = Math.max(MIN_H, Math.min(MAX_H, h));
+
+    // Final guard (should already hold since aspect >= 1)
+    if (h > w) {
+        const fitted = fitByAspect(w, h, Math.max(1, aspect));
+        w = fitted.w; h = fitted.h;
+    }
+
+    // Scale radius with width (keeps gameplay feel consistent)
+    const radius = Math.max(4, Math.min(12, Math.round(w * 0.009)));
+
+    // Helpful debug
+    console.log("[getBoardConfig]", {
+        vw: Math.round(vw), vh: Math.round(vh), device, portraitViewport, aspect,
+        width: Math.round(w), height: Math.round(h), radius
+    });
+
+    return { width: Math.round(w), height: Math.round(h), foldX: Math.round(w / 2), radius };
+}
+
+
+
+/*
+
 function getBoardConfig(): BoardConfig {
     if (typeof window === "undefined") {
         return { width: 600, height: 320, foldX: 300, radius: 7 };
     }
-    const isMobile = window.innerWidth < 750;
-    const isLandscape =
-        typeof window.matchMedia === "function"
-            ? window.matchMedia("(orientation: landscape)").matches
-            : window.innerWidth > window.innerHeight;
 
-    let width: number, height: number, radius: number;
-    if (isMobile && isLandscape) {
-        width = 480; height = 280; radius = 5;
-    } else if (isMobile) {
-        width = 320; height = 260; radius = 4;
+    // Viewport (prefer visualViewport on mobile)
+    const vv = (window as any).visualViewport as VisualViewport | undefined;
+    const vw = vv ? Math.round(vv.width) : window.innerWidth;
+    const vh = vv ? Math.round(vv.height) : window.innerHeight;
+
+    const shortest = Math.min(vw, vh);
+    const longest  = Math.max(vw, vh);
+    const landscape = vw > vh;
+
+    // Breakpoints by shortest side (tweak as you like)
+    // <480: phone, <768: small tablet / phablet, <1024: tablet, <1440: laptop, >=1440: wide desktop
+    let width: number;
+    let height: number;
+    let radius: number;
+
+    if (shortest < 480) {
+        // PHONE
+        if (landscape) { width = 520; height = 320; radius = 5; }
+        else           { width = 340; height = 260; radius = 4; }
+    } else if (shortest < 768) {
+        // SMALL TABLET / PHABLET
+        if (landscape) { width = 640; height = 380; radius = 6; }
+        else           { width = 420; height = 320; radius = 5; }
+    } else if (shortest < 1024) {
+        // TABLET
+        if (landscape) { width = 820; height = 480; radius = 7; }
+        else           { width = 600; height = 400; radius = 6; }
+    } else if (shortest < 1440) {
+        // LAPTOP / DESKTOP COMPACT
+        if (landscape) { width = 900; height = 520; radius = 8; }
+        else           { width = 760; height = 520; radius = 7; } // tall window
     } else {
-        width = 900; height = 520; radius = 8;
+        // WIDE DESKTOP / ULTRAWIDE
+        // Optionally scale up slightly but keep aspect reasonable
+        const scale = Math.min(1.25, longest / 1920); // gentle cap
+        width  = Math.round(900 * scale + 200);  // ~1100–1325
+        height = Math.round(520 * scale + 120);  // ~640–770
+        radius = Math.round(8 * scale);          // ~10–12
     }
+
+    // Helpful logs while tuning
+    console.log("[getBoardConfig]", { vw, vh, shortest, landscape, width, height, radius });
+
+
+
     return { width, height, foldX: width / 2, radius };
 }
+
+ */
 
 type NPt = { nx: number; ny: number };
 
