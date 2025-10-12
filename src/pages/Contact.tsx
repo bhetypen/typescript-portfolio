@@ -1,89 +1,96 @@
-import {useState, useMemo} from "react";
-import type {FC, FormEvent, ChangeEvent, Dispatch, SetStateAction} from "react";
-import {Github, Linkedin, Mail, Loader2} from "lucide-react";
+import { useState, useMemo } from "react";
+import type { FC, FormEvent, ChangeEvent, Dispatch, SetStateAction } from "react";
+import { Github, Linkedin, Mail, Loader2 } from "lucide-react";
+import { toast } from "react-hot-toast";
 
-// Define the component type explicitly as a Functional Component (FC)
 const Contact: FC = () => {
-    // Email validation utility function
+    // Email validation
     const isValidEmail = (v: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
-    // 1. State Management (Explicitly typed)
-    const [name, setName] = useState<string>('');
-    const [email, setEmail] = useState<string>('');
-    const [message, setMessage] = useState<string>('');
-    const [hp, setHp] = useState<string>(''); // Honeypot field
+    // State
+    const [name, setName] = useState<string>("");
+    const [email, setEmail] = useState<string>("");
+    const [message, setMessage] = useState<string>("");
+    const [hp, setHp] = useState<string>(""); // honeypot
     const [sending, setSending] = useState<boolean>(false);
-    const [sent, setSent] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
 
-    // 2. Computed Property (Mimicking Vue's computed property using useMemo)
-    const canSubmit = useMemo((): boolean =>
-            name.trim().length >= 2 &&
-            isValidEmail(email.trim()) &&
-            message.trim().length >= 10
-        , [name, email, message]);
+    // Optional live hints (not used to disable the button anymore)
+    const isNameOk = useMemo(() => name.trim().length >= 2, [name]);
+    const isEmailOk = useMemo(() => isValidEmail(email.trim()), [email]);
+    const isMessageOk = useMemo(() => message.trim().length >= 10, [message]);
 
-    // 3. Submission Handler (Explicitly typing the form event)
+    // Input helper
+    const handleInputChange =
+        (setter: Dispatch<SetStateAction<string>>) =>
+            (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                setter(e.target.value);
+            };
+
+    // Submit
     const onSubmit = async (e: FormEvent) => {
         e.preventDefault();
 
-        setError(null);
-        setSent(false);
+        const n = name.trim();
+        const em = email.trim();
+        const msg = message.trim();
 
-        if (!canSubmit) {
-            setError('Please fill all fields correctly.');
+        // Submit-time validation with toasts
+        if (n.length < 2) {
+            toast.error("Name must be at least 2 characters.", { id: "name-error" });
+            return;
+        }
+        if (!isValidEmail(em)) {
+            toast.error("Please enter a valid email address.", { id: "email-error" });
+            return;
+        }
+        if (msg.length < 10) {
+            toast.error("Message must be at least 10 characters.", { id: "message-error" });
             return;
         }
 
         try {
             setSending(true);
 
-            // Using URLSearchParams to correctly format form data for PHP endpoint
             const body = new URLSearchParams({
-                name: name,
-                email: email,
-                message: message,
-                hp: hp || '' // Pass honeypot value
+                name: n,
+                email: em,
+                message: msg,
+                hp: hp || "",
             }).toString();
 
-            const res = await fetch('https://bhetycodes.online/send.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: body,
-                mode: 'cors',
-                credentials: 'omit'
+            const res = await fetch("https://bhetycodes.online/send.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body,
+                mode: "cors",
+                credentials: "omit",
             });
 
-            const text = await res.text();
+            const text = await res.text(); // server returns "OK" or an error message
 
             if (!res.ok) {
                 throw new Error(text || `HTTP ${res.status}`);
             }
 
-            // Success: clear form and show success message
-            setSent(true);
-            setName('');
-            setEmail('');
-            setMessage('');
-            setHp('');
+            toast.success("Thanks! Your message was sent successfully.", { id: "success" });
 
-        } catch (e: any) { // Using 'any' for handling dynamic error types
-            console.error("Submission Error:", e);
-            setError(e?.message || 'Something went wrong while sending the message.');
+            // reset form
+            setName("");
+            setEmail("");
+            setMessage("");
+            setHp("");
+        } catch (err: any) {
+            console.error("Submission Error:", err);
+            toast.error(err?.message || "Something went wrong while sending the message.", { id: "server-error" });
         } finally {
             setSending(false);
         }
     };
 
-    // --- Updated Styles to use Amber/Yellow Color Palette ---
-    const inputClasses: string = "w-full px-3 py-2 rounded-[3px] bg-slate-900/60 border border-neutral-700 text-sm text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-amber-500";
-    const labelClasses: string = "block text-sm mb-1 text-neutral-300";
-
-    // Helper function for change event typing
-    const handleInputChange = (setter: Dispatch<SetStateAction<string>>) =>
-        (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-            setter(e.target.value);
-        };
+    // Styles
+    const inputClasses =
+        "w-full px-3 py-2 rounded-[3px] bg-slate-900/60 border border-neutral-700 text-sm text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-amber-500";
+    const labelClasses = "block text-sm mb-1 text-neutral-300";
 
     return (
         <div className="bg-neutral-950 min-h-screen text-white">
@@ -98,78 +105,100 @@ const Contact: FC = () => {
                 <div className="rounded-[3px] border border-slate-800 shadow-lg p-6 md:p-10 bg-[#060911]">
                     <h2 className="text-xl font-semibold mb-6">Send a message</h2>
 
-                    <form className="space-y-5" onSubmit={onSubmit}>
-                        {/* Honeypot */}
+                    {/* noValidate to avoid native browser popups; we show toasts instead */}
+                    <form className="space-y-5" onSubmit={onSubmit} noValidate>
+                        {/* Honeypot (hidden) */}
                         <input
                             value={hp}
                             onChange={handleInputChange(setHp)}
                             type="text"
                             className="hidden"
                             autoComplete="off"
-                            tabIndex={-1} // Ensure no tab focus
+                            tabIndex={-1}
                             aria-hidden="true"
                         />
 
                         {/* Name */}
                         <div>
-                            <label className={labelClasses}>Name</label>
+                            <label className={labelClasses} htmlFor="name">Name</label>
                             <input
+                                id="name"
                                 value={name}
                                 onChange={handleInputChange(setName)}
                                 type="text"
-                                required
                                 placeholder="Your name"
                                 className={inputClasses}
+                                minLength={2}
+                                aria-invalid={name.length > 0 && !isNameOk}
+                                onBlur={() => {
+                                    if (name.trim().length > 0 && !isNameOk) {
+                                        toast.error("Name must be at least 2 characters.");
+                                    }
+                                }}
                             />
                         </div>
 
                         {/* Email */}
                         <div>
-                            <label className={labelClasses}>Email</label>
+                            <label className={labelClasses} htmlFor="email">Email</label>
                             <input
+                                id="email"
                                 value={email}
                                 onChange={handleInputChange(setEmail)}
                                 type="email"
-                                required
                                 placeholder="you@email.com"
                                 className={inputClasses}
+                                aria-invalid={email.length > 0 && !isEmailOk}
+                                onBlur={() => {
+                                    const em = email.trim();
+                                    if (em.length > 0 && !isValidEmail(em)) {
+                                        toast.error("Please enter a valid email address.");
+                                    }
+                                }}
                             />
                         </div>
 
                         {/* Message */}
                         <div>
-                            <label className={labelClasses}>Message</label>
+                            <label className={labelClasses} htmlFor="message">Message</label>
                             <textarea
+                                id="message"
                                 value={message}
                                 onChange={handleInputChange(setMessage)}
                                 rows={6}
-                                required
                                 placeholder="Tell me a bit about your project…"
                                 className={inputClasses}
+                                minLength={10}
+                                aria-invalid={message.length > 0 && !isMessageOk}
+                                onBlur={() => {
+                                    const msg = message.trim();
+                                    if (msg.length > 0 && msg.length < 10) {
+                                        toast.error("Message must be at least 10 characters.");
+                                    }
+                                }}
                             />
+                            <div className="mt-1 text-xs text-neutral-500">
+                                {message.trim().length}/10 minimum
+                            </div>
                         </div>
-
-                        {/* Alerts */}
-                        {error && <p className="text-sm text-red-400 font-medium">{error}</p>}
-                        {sent && <p className="text-sm text-green-400 font-medium">Thanks! Your message was sent
-                            successfully.</p>}
 
                         {/* Actions */}
                         <div className="pt-2">
                             <button
                                 type="submit"
-                                disabled={!canSubmit || sending}
+                                disabled={sending} // only disabled while sending
                                 className="w-full md:w-auto px-6 py-3 rounded-[3px] font-semibold shadow-md transition-colors
-                                             bg-[#F59E0B] text-black shadow-[0_0_15px_#F59E0B]
-                                             hover:bg-amber-600 hover:shadow-[0_0_10px_#F59E0B]"
+                           bg-[#F59E0B] text-black shadow-[0_0_15px_#F59E0B]
+                           hover:bg-amber-600 hover:shadow-[0_0_10px_#F59E0B]
+                           disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {sending ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin"/>
-                                        Sending…
-                                    </>
+                                    <span className="inline-flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending…
+                  </span>
                                 ) : (
-                                    'Send Message'
+                                    "Send Message"
                                 )}
                             </button>
                         </div>
@@ -178,8 +207,9 @@ const Contact: FC = () => {
 
                 {/* Social links */}
                 <div className="mt-12 text-center md:text-left">
-                    <h2 className="text-lg font-semibold mb-4 border-b border-neutral-700/50 pb-2 inline-block">Or reach
-                        me directly:</h2>
+                    <h2 className="text-lg font-semibold mb-4 border-b border-neutral-700/50 pb-2 inline-block">
+                        Or reach me directly:
+                    </h2>
                     <div className="flex justify-center md:justify-start gap-6 text-slate-400 mt-4">
                         <a
                             href="https://www.linkedin.com/in/bhety-penetzdorfer/"
@@ -187,7 +217,7 @@ const Contact: FC = () => {
                             rel="noopener noreferrer"
                             className="hover:text-amber-400 transition"
                         >
-                            <Linkedin className="w-7 h-7"/>
+                            <Linkedin className="w-7 h-7" />
                         </a>
                         <a
                             href="https://github.com/bhetypen"
@@ -195,19 +225,19 @@ const Contact: FC = () => {
                             rel="noopener noreferrer"
                             className="hover:text-amber-400 transition"
                         >
-                            <Github className="w-7 h-7"/>
+                            <Github className="w-7 h-7" />
                         </a>
                         <a
                             href="mailto:info@bhetyportfolio.com"
                             className="hover:text-amber-400 transition"
                         >
-                            <Mail className="w-7 h-7"/>
+                            <Mail className="w-7 h-7" />
                         </a>
                     </div>
                 </div>
             </section>
         </div>
     );
-}
+};
 
 export default Contact;

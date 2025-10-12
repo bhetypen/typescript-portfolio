@@ -10,6 +10,7 @@ import Games from "@/pages/Games.tsx";
 import PaperFoldWarOnline from "@/pages/PaperFoldWarOnline.tsx"
 import PaperFoldWar from "@/pages/PaperFoldWar.tsx";
 import ToolsPage from "@/pages/Tools.tsx";
+import { Toaster } from 'react-hot-toast';
 
 export default function App() {
     return (
@@ -27,6 +28,7 @@ export default function App() {
                 <Route path="/games/paper-fold-war/online/:roomId" element={<PaperFoldWarOnline />} />
             </Routes>
             <Footer/>
+            <Toaster position="top-right" reverseOrder={false} />
         </BrowserRouter>
     );
 }
