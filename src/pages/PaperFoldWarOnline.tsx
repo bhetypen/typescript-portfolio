@@ -826,7 +826,6 @@ export default function PaperFoldWarOnline() {
                             />
                             <div className="text-center text-sm">
                                 Scan to join this room
-                                <div className="text-xs text-gray-600 break-all mt-1">{shareUrl}</div>
                             </div>
                             <button
                                 onClick={() => navigator.clipboard.writeText(shareUrl)}
