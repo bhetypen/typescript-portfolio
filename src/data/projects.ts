@@ -33,6 +33,17 @@ export const fullstackProjects: Project[] = [
             github: "https://github.com/bhetypen/linzsouvenir-app",
         },
         thumbnail: "/images/ecommerce.png",
+    },
+    {
+        title: "Community Blog Platform",
+        description:
+            "A collaborative blog site where anyone can post articles, featuring an admin dashboard for management, a user dashboard with profile controls, and a built-in markdown editor for creating rich content. Designed with responsive UI and smooth navigation for an open publishing experience.",
+        tags: ["React.js", "MongoDB", "Bootstrap", "Node.js", "Express", "Docker", "Caddy", "VPS Linux Deployment"],
+        links: {
+            demo: "https://blog-frontend-sandy-nine.vercel.app/",
+            github: "https://github.com/bhetypen/blog-client",
+        },
+        thumbnail: "/images/blogger1.png",
     }
 ];
 
