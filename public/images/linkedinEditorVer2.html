@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>LinkedIn Post Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM (development) -->
+    <script
+            crossorigin
+            src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+            crossorigin
+            src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-100">
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState, useMemo, useRef, useEffect } = React;
+
+    const MAX_CHARS = 3000;
+
+    const STORAGE_KEY = "linkedin_post_editor_post_v1";
+    const STORAGE_AUTOSAVE_KEY = "linkedin_post_editor_autosave_v1";
+
+    // =====================================================
+    // TONE CONFIGURATION
+    // =====================================================
+
+    const TONES = ["Professional", "Casual", "Storytelling", "Thought Leadership", "Technical"];
+
+    // Tone-specific emoji palettes (#2)
+    const EMOJI_BY_TONE = {
+        Professional: ["💼", "📊", "✅", "🎯", "📌", "🤝", "📈", "💡", "🏆", "📋"],
+        Casual: ["🔥", "😄", "🙌", "👇", "🚀", "💪", "🎉", "👀", "😎", "🤙"],
+        Storytelling: ["💡", "🌱", "🔁", "✨", "🪴", "📖", "🎬", "💭", "🌟", "🔮"],
+        "Thought Leadership": ["🧠", "🔮", "📣", "💎", "🌍", "⚡", "🏆", "🎯", "💡", "🚀"],
+        Technical: ["⚙️", "🛠️", "📦", "🧪", "🔧", "💻", "🐛", "✅", "🔍", "📝"],
+    };
+
+    // Tone-aware hook feedback (#3)
+    const HOOK_CONFIG = {
+        Professional: {
+            maxLength: 120,
+            emptyAdvice: "Keep it crisp and outcome-focused. Lead with value.",
+            goodFeedback: "Clean and professional — nice.",
+            warning: "Busy professionals skim. Consider tightening.",
+        },
+        Casual: {
+            maxLength: 180,
+            emptyAdvice: "Be conversational! Ask a question or share a hot take.",
+            goodFeedback: "Friendly and approachable — solid hook.",
+            warning: "Getting long — can you punch it up?",
+        },
+        Storytelling: {
+            maxLength: 150,
+            emptyAdvice: "Open a loop. Make them need to know what happens next.",
+            goodFeedback: "Intriguing opener — you've got their attention.",
+            warning: "Strong hooks create tension. Is yours pulling them in?",
+        },
+        "Thought Leadership": {
+            maxLength: 140,
+            emptyAdvice: "Lead with a bold claim or counterintuitive insight.",
+            goodFeedback: "Bold and confident — thought leaders approve.",
+            warning: "Thought leaders are concise. Tighten this.",
+        },
+        Technical: {
+            maxLength: 130,
+            emptyAdvice: "State the problem or solution upfront. Devs appreciate clarity.",
+            goodFeedback: "Direct and clear — exactly what technical readers want.",
+            warning: "Devs hate fluff — get to the point faster.",
+        },
+    };
+
+    // =====================================================
+    // TEMPLATES WITH TONE TAGS (#1)
+    // =====================================================
+
+    const TEMPLATES = [
+        {
+            id: "job_announcement",
+            name: "Job announcement",
+            tones: ["Professional", "Casual"],
+            description: "Share a new role or career move.",
+            content: `🚀 Excited to share a new chapter!
+
+I'm thrilled to announce that I've joined [COMPANY NAME] as [YOUR ROLE].
+
+Here's what I'll be working on:
+• [Key responsibility #1]
+• [Key responsibility #2]
+• [Key responsibility #3]
+
+Why this move matters to me:
+• [Reason #1 – impact, growth, mission]
+• [Reason #2 – team, culture, technology]
+
+I'm incredibly grateful for:
+• My previous team at [OLD COMPANY] for [what you learned].
+• Mentors and friends who supported me along the way.
+
+If you're in [industry / topic], I'd love to connect, swap ideas, or collaborate. 🙌
+
+👇 Curious about what we're building at [COMPANY]?
+Drop a comment or send me a message – always happy to chat.`
+        },
+        {
+            id: "story_post",
+            name: "Story post",
+            tones: ["Storytelling", "Casual"],
+            description: "Share a personal lesson or transformation.",
+            content: `💡 One year ago, I was here: [describe your "before" situation].
+
+Today, things look very different.
+
+Here's what changed:
+1. [Change #1 – a decision you made]
+2. [Change #2 – a habit or skill]
+3. [Change #3 – a mindset shift]
+
+A few things I learned along the way:
+• [Lesson #1]
+• [Lesson #2]
+• [Lesson #3]
+
+This isn't about overnight success.
+It's about small, consistent steps that compound over time. 🔁
+
+If you're currently in the "before" stage:
+• You're not behind.
+• You're not stuck forever.
+• You're one decision away from a different direction.
+
+👇 If this resonates, tell me which part you're working on right now.`
+        },
+        {
+            id: "launch_post",
+            name: "Launch post (product / SaaS)",
+            tones: ["Professional", "Technical", "Thought Leadership"],
+            description: "Announce a product or feature launch.",
+            content: `🚀 Launching [PRODUCT / PROJECT NAME]
+
+For the past [X weeks/months], I've been working on something I wish I had when [describe your problem or use case].
+
+Today, it's live. 🎉
+
+Here's what it does:
+• [Benefit #1 – clear, outcome-focused]
+• [Benefit #2 – what it saves (time, money, mistakes)]
+• [Benefit #3 – who it's for]
+
+Built for:
+• [Ideal user #1]
+• [Ideal user #2]
+• [Ideal user #3]
+
+Why I built this:
+• [Personal reason / frustration you solved]
+• [Gap you saw in the market]
+
+If you:
+• Struggle with [problem]
+• Want [specific outcome]
+• Care about [niche / topic]
+
+…then this might be for you.
+
+👇 Comment "DEMO" or send me a message, and I'll share more details, screenshots, or a walkthrough.`
+        },
+        {
+            id: "personal_brand",
+            name: "Personal brand / intro",
+            tones: ["Professional", "Casual", "Thought Leadership"],
+            description: "Introduce who you are and what you talk about.",
+            content: `👋 Quick intro for anyone new here.
+
+I'm [YOUR NAME], and I help [WHO YOU HELP] achieve [RESULT] through [HOW YOU DO IT].
+
+On this profile, you'll mostly see posts about:
+• [Topic #1 – e.g. job search, SaaS growth, leadership]
+• [Topic #2]
+• [Topic #3]
+
+Over the last [X years], I've:
+• [Key achievement #1]
+• [Key achievement #2]
+• [Key achievement #3]
+
+Why I'm active on LinkedIn:
+• To share what I'm learning in public
+• To connect with people who care about [topic]
+• To open doors for future collaborations
+
+If any of this aligns with what you do or want:
+👇 Let's connect. Tell me what you're working on right now.`
+        },
+        {
+            id: "job_search",
+            name: "Job search post",
+            tones: ["Professional", "Casual"],
+            description: "Let people know you're looking – without sounding desperate.",
+            content: `💼 I'm currently exploring new opportunities.
+
+After [X years] in [your field/industry], I'm looking for a role where I can:
+• [Impact you want to create]
+• [Type of team or environment]
+• [Type of problems you want to solve]
+
+My background:
+• [Your role/title] with experience in [skills/tools]
+• Worked at [Company #1], [Company #2]
+• [Key achievement or result #1]
+• [Key achievement or result #2]
+
+I'm especially interested in:
+• Roles: [Job titles you're targeting]
+• Industries: [Industry #1], [Industry #2]
+• Locations: [Location / Remote]
+
+If you know of a team that's hiring for someone who:
+• [Strength #1]
+• [Strength #2]
+• [Strength #3]
+
+…I'd be grateful for intros, leads, or a quick conversation.
+
+👇 Happy to send my CV / portfolio or share more about my work in the comments or via DM.`
+        },
+        {
+            id: "hot_take",
+            name: "Hot take / opinion",
+            tones: ["Thought Leadership", "Casual"],
+            description: "Share a bold opinion that sparks discussion.",
+            content: `Unpopular opinion: [YOUR BOLD STATEMENT]
+
+Here's why I think this:
+
+Most people believe [common assumption].
+But in my experience, [what you've observed instead].
+
+The problem with [common approach]:
+• [Issue #1]
+• [Issue #2]
+• [Issue #3]
+
+What actually works:
+• [Alternative #1]
+• [Alternative #2]
+• [Alternative #3]
+
+I know this might ruffle some feathers.
+But I'd rather start a conversation than stay quiet.
+
+👇 Agree? Disagree? Tell me why.`
+        },
+        {
+            id: "technical_tutorial",
+            name: "Technical mini-tutorial",
+            tones: ["Technical"],
+            description: "Share a quick technical tip or solution.",
+            content: `⚙️ Quick tip: [WHAT YOU'LL LEARN]
+
+I spent [X hours] debugging this so you don't have to.
+
+The problem:
+[Describe the issue in 1-2 sentences]
+
+The solution:
+[Code snippet or step-by-step]
+
+Why this works:
+• [Technical explanation #1]
+• [Technical explanation #2]
+
+Common mistakes to avoid:
+• [Mistake #1]
+• [Mistake #2]
+
+Tools/stack: [List relevant technologies]
+
+👇 Save this for later. Or drop your own tips below.`
+        },
+        {
+            id: "lesson_learned",
+            name: "Lesson learned",
+            tones: ["Storytelling", "Professional", "Thought Leadership"],
+            description: "Share a mistake and what it taught you.",
+            content: `I made a mistake that cost me [TIME/MONEY/OPPORTUNITY].
+
+Here's what happened:
+[Brief story – 2-3 sentences]
+
+What I should have done differently:
+• [Action #1]
+• [Action #2]
+• [Action #3]
+
+The lesson:
+[One clear takeaway in 1-2 sentences]
+
+This was painful to admit.
+But if it helps even one person avoid the same trap, it's worth sharing.
+
+👇 Have you learned something the hard way? I'd love to hear it.`
+        }
+    ];
+
+    // =====================================================
+    // UNICODE STYLING
+    // =====================================================
+
+    const styleText = (text, style) => {
+        let result = "";
+        for (const ch of text) {
+            const code = ch.codePointAt(0);
+            let styledChar = ch;
+
+            if (style === "bold") {
+                if (ch >= "A" && ch <= "Z") {
+                    styledChar = String.fromCodePoint(
+                        0x1d400 + (code - "A".codePointAt(0))
+                    );
+                } else if (ch >= "a" && ch <= "z") {
+                    styledChar = String.fromCodePoint(
+                        0x1d41a + (code - "a".codePointAt(0))
+                    );
+                } else if (ch >= "0" && ch <= "9") {
+                    styledChar = String.fromCodePoint(
+                        0x1d7ce + (code - "0".codePointAt(0))
+                    );
+                }
+            } else if (style === "italic") {
+                if (ch >= "A" && ch <= "Z") {
+                    styledChar = String.fromCodePoint(
+                        0x1d4d0 + (code - "A".codePointAt(0))
+                    );
+                } else if (ch >= "a" && ch <= "z") {
+                    styledChar = String.fromCodePoint(
+                        0x1d4ea + (code - "a".codePointAt(0))
+                    );
+                }
+            }
+
+            result += styledChar;
+        }
+        return result;
+    };
+
+    // =====================================================
+    // MAIN COMPONENT
+    // =====================================================
+
+    function LinkedInPostEditor() {
+        const [post, setPost] = useState("");
+        const [tone, setTone] = useState("Professional");
+        const [selectedTemplateId, setSelectedTemplateId] = useState("");
+        const [autoSave, setAutoSave] = useState(true);
+        const textareaRef = useRef(null);
+
+        const charCount = post.length;
+
+        const hook = useMemo(() => {
+            const firstLine = post.split("\n")[0] || "";
+            return firstLine.trim();
+        }, [post]);
+
+        const hookLength = hook.length;
+        const hookConfig = HOOK_CONFIG[tone] || HOOK_CONFIG.Professional;
+
+        // Filter templates by tone (#1)
+        const filteredTemplates = useMemo(() => {
+            return TEMPLATES.filter(t => t.tones.includes(tone));
+        }, [tone]);
+
+        // Auto-select first available template when tone changes
+        useEffect(() => {
+            if (filteredTemplates.length > 0) {
+                const currentStillValid = filteredTemplates.some(t => t.id === selectedTemplateId);
+                if (!currentStillValid) {
+                    setSelectedTemplateId(filteredTemplates[0].id);
+                }
+            } else {
+                setSelectedTemplateId("");
+            }
+        }, [filteredTemplates, selectedTemplateId]);
+
+        // Get current emojis based on tone (#2)
+        const currentEmojis = EMOJI_BY_TONE[tone] || EMOJI_BY_TONE.Professional;
+
+        // Content warnings based on tone (#4)
+        const toneWarnings = useMemo(() => {
+            const warnings = [];
+            if (!post) return warnings;
+
+            // Count emojis (simplified - counts common emoji ranges)
+            const emojiMatches = post.match(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu);
+            const emojiCount = emojiMatches ? emojiMatches.length : 0;
+
+            const exclamationCount = (post.match(/!/g) || []).length;
+            const questionCount = (post.match(/\?/g) || []).length;
+            const capsWords = (post.match(/\b[A-Z]{2,}\b/g) || []).filter(w => !["I", "CV", "CEO", "CTO", "API", "SaaS", "URL", "AI", "ML", "UI", "UX"].includes(w));
+            const lineCount = post.split("\n").filter(l => l.trim()).length;
+
+            if (tone === "Professional") {
+                if (emojiCount > 6) {
+                    warnings.push({ type: "warning", text: "Many emojis — might feel too casual for professional tone." });
+                }
+                if (exclamationCount > 4) {
+                    warnings.push({ type: "warning", text: "Multiple exclamation marks can weaken professional credibility." });
+                }
+                if (capsWords.length > 2) {
+                    warnings.push({ type: "info", text: "ALL CAPS can read as shouting. Use sparingly." });
+                }
+            }
+
+            if (tone === "Technical") {
+                if (emojiCount > 4) {
+                    warnings.push({ type: "info", text: "Technical posts usually go lighter on emojis." });
+                }
+                if (exclamationCount > 3) {
+                    warnings.push({ type: "info", text: "Technical audiences prefer understated tone." });
+                }
+            }
+
+            if (tone === "Casual") {
+                if (emojiCount === 0 && lineCount > 3) {
+                    warnings.push({ type: "tip", text: "Casual posts often benefit from an emoji or two." });
+                }
+            }
+
+            if (tone === "Storytelling") {
+                if (questionCount === 0 && lineCount > 5) {
+                    warnings.push({ type: "tip", text: "Consider adding a question to engage readers." });
+                }
+            }
+
+            if (tone === "Thought Leadership") {
+                if (emojiCount > 5) {
+                    warnings.push({ type: "info", text: "Thought leadership posts often use fewer emojis for gravitas." });
+                }
+            }
+
+            // Universal warnings
+            if (charCount > 2500) {
+                warnings.push({ type: "warning", text: `${charCount} chars — getting close to LinkedIn's 3,000 limit.` });
+            }
+
+            return warnings;
+        }, [post, tone, charCount]);
+
+        // Load from localStorage on mount
+        useEffect(() => {
+            try {
+                const savedPost =
+                    typeof window !== "undefined"
+                        ? window.localStorage.getItem(STORAGE_KEY)
+                        : null;
+                const savedAuto =
+                    typeof window !== "undefined"
+                        ? window.localStorage.getItem(STORAGE_AUTOSAVE_KEY)
+                        : null;
+
+                if (savedPost) {
+                    setPost(savedPost);
+                }
+                if (savedAuto === "false") {
+                    setAutoSave(false);
+                }
+            } catch (e) {
+                console.warn("Could not access localStorage", e);
+            }
+        }, []);
+
+        // Save to localStorage when post or autoSave changes
+        useEffect(() => {
+            try {
+                if (typeof window === "undefined") return;
+                window.localStorage.setItem(
+                    STORAGE_AUTOSAVE_KEY,
+                    String(autoSave)
+                );
+
+                if (autoSave) {
+                    if (post) {
+                        window.localStorage.setItem(STORAGE_KEY, post);
+                    } else {
+                        window.localStorage.removeItem(STORAGE_KEY);
+                    }
+                }
+            } catch (e) {
+                console.warn("Could not write to localStorage", e);
+            }
+        }, [post, autoSave]);
+
+        const applyWithSelection = (transformFn) => {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+
+            const before = post.slice(0, start);
+            const selected = post.slice(start, end);
+            const after = post.slice(end);
+
+            const { newText, newStart, newEnd } = transformFn({
+                before,
+                selected,
+                after,
+                start,
+                end,
+            });
+
+            if (newText.length > MAX_CHARS) {
+                alert("This change would exceed the 3,000 character limit.");
+                return;
+            }
+
+            setPost(newText);
+
+            requestAnimationFrame(() => {
+                textarea.focus();
+                textarea.setSelectionRange(newStart, newEnd);
+            });
+        };
+
+        const handleChange = (e) => {
+            const text = e.target.value;
+            if (text.length <= MAX_CHARS) {
+                setPost(text);
+            }
+        };
+
+        const formatBold = () => {
+            applyWithSelection(({ before, selected, after }) => {
+                const content = selected || "Bold text";
+                const styled = styleText(content, "bold");
+                const newText = before + styled + after;
+                const cursorStart = before.length;
+                const cursorEnd = before.length + styled.length;
+                return {
+                    newText,
+                    newStart: cursorStart,
+                    newEnd: cursorEnd,
+                };
+            });
+        };
+
+        const formatItalic = () => {
+            applyWithSelection(({ before, selected, after }) => {
+                const content = selected || "Italic text";
+                const styled = styleText(content, "italic");
+                const newText = before + styled + after;
+                const cursorStart = before.length;
+                const cursorEnd = before.length + styled.length;
+                return {
+                    newText,
+                    newStart: cursorStart,
+                    newEnd: cursorEnd,
+                };
+            });
+        };
+
+        const addBullet = () => {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const fullText = post;
+
+            if (start === end) {
+                const lineStart = fullText.lastIndexOf("\n", start - 1) + 1;
+                const before = fullText.slice(0, lineStart);
+                const line = fullText.slice(lineStart);
+                const trimmed = line.trimStart();
+                const alreadyBullet = trimmed.startsWith("•");
+                const bulletPrefix = alreadyBullet ? "" : "• ";
+                const newText = before + bulletPrefix + line;
+
+                if (newText.length > MAX_CHARS) {
+                    alert("This change would exceed 3,000 characters.");
+                    return;
+                }
+
+                setPost(newText);
+
+                const newCursor = start + bulletPrefix.length;
+                requestAnimationFrame(() => {
+                    textarea.focus();
+                    textarea.setSelectionRange(newCursor, newCursor);
+                });
+                return;
+            }
+
+            const selectionStartLine =
+                fullText.lastIndexOf("\n", start - 1) + 1 || 0;
+            const selectionEndLine =
+                fullText.indexOf("\n", end) === -1
+                    ? fullText.length
+                    : fullText.indexOf("\n", end);
+
+            const beforeBlock = fullText.slice(0, selectionStartLine);
+            const block = fullText.slice(selectionStartLine, selectionEndLine);
+            const afterBlock = fullText.slice(selectionEndLine);
+
+            const blockLines = block.split("\n");
+            const bulletLines = blockLines.map((line) => {
+                const trimmed = line.trim();
+                if (!trimmed) return "";
+                if (trimmed.startsWith("•")) return line;
+                return "• " + trimmed;
+            });
+
+            const newBlock = bulletLines.join("\n");
+            const newText = beforeBlock + newBlock + afterBlock;
+
+            if (newText.length > MAX_CHARS) {
+                alert("This change would exceed 3,000 characters.");
+                return;
+            }
+
+            setPost(newText);
+
+            const newStart = selectionStartLine;
+            const newEnd = selectionStartLine + newBlock.length;
+
+            requestAnimationFrame(() => {
+                textarea.focus();
+                textarea.setSelectionRange(newStart, newEnd);
+            });
+        };
+
+        const addNumberedList = () => {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const fullText = post;
+
+            const selectionStartLine =
+                fullText.lastIndexOf("\n", start - 1) + 1 || 0;
+            const selectionEndLine =
+                start === end
+                    ? fullText.indexOf("\n", start) === -1
+                        ? fullText.length
+                        : fullText.indexOf("\n", start)
+                    : fullText.indexOf("\n", end) === -1
+                        ? fullText.length
+                        : fullText.indexOf("\n", end);
+
+            const beforeBlock = fullText.slice(0, selectionStartLine);
+            const block = fullText.slice(selectionStartLine, selectionEndLine);
+            const afterBlock = fullText.slice(selectionEndLine);
+
+            const blockLines = block.split("\n");
+            let counter = 1;
+            const numberedLines = blockLines.map((line) => {
+                const trimmed = line.trim();
+                if (!trimmed) return "";
+                if (/^\d+\.\s+/.test(trimmed)) return trimmed;
+                const numbered = `${counter}. ${trimmed}`;
+                counter += 1;
+                return numbered;
+            });
+
+            const newBlock = numberedLines.join("\n");
+            const newText = beforeBlock + newBlock + afterBlock;
+
+            if (newText.length > MAX_CHARS) {
+                alert("This change would exceed 3,000 characters.");
+                return;
+            }
+
+            setPost(newText);
+
+            const newStart = selectionStartLine;
+            const newEnd = selectionStartLine + newBlock.length;
+
+            requestAnimationFrame(() => {
+                textarea.focus();
+                textarea.setSelectionRange(newStart, newEnd);
+            });
+        };
+
+        const insertEmoji = (emoji) => {
+            applyWithSelection(({ before, selected, after }) => {
+                const newText = before + emoji + selected + after;
+                const newStart = (before + emoji).length;
+                const newEnd = newStart + selected.length;
+                return { newText, newStart, newEnd };
+            });
+        };
+
+        const cleanForLinkedIn = () => {
+            let text = post || "";
+
+            text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+            const lines = text.split("\n");
+            const cleanedLines = [];
+
+            for (let rawLine of lines) {
+                let line = rawLine.replace(/\s+$/, "");
+
+                const bulletMatch = line.match(/^\s*([-*•])\s+(.*)/);
+                if (bulletMatch) {
+                    const content = bulletMatch[2].trim();
+                    line = `• ${content}`;
+                }
+
+                const numberMatch = line.match(/^\s*(\d+)\.?\s+(.*)/);
+                if (numberMatch) {
+                    const num = numberMatch[1];
+                    const content = numberMatch[2].trim();
+                    line = `${num}. ${content}`;
+                }
+
+                cleanedLines.push(line);
+            }
+
+            text = cleanedLines.join("\n");
+            setPost(text);
+        };
+
+        const copyToClipboard = async () => {
+            try {
+                await navigator.clipboard.writeText(post);
+                alert("Post copied to clipboard!");
+            } catch {
+                alert("Could not copy. Please copy manually.");
+            }
+        };
+
+        const clearEditor = () => {
+            setPost("");
+            try {
+                if (typeof window !== "undefined") {
+                    window.localStorage.removeItem(STORAGE_KEY);
+                }
+            } catch (e) {
+                console.warn("Could not clear localStorage", e);
+            }
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(0, 0);
+            }
+        };
+
+        const insertTemplate = () => {
+            const template = TEMPLATES.find((t) => t.id === selectedTemplateId);
+            if (!template) return;
+            setPost(template.content);
+            requestAnimationFrame(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.focus();
+                    textareaRef.current.setSelectionRange(
+                        template.content.length,
+                        template.content.length
+                    );
+                }
+            });
+        };
+
+        const charColor =
+            charCount > MAX_CHARS * 0.9
+                ? "text-red-500"
+                : charCount > MAX_CHARS * 0.7
+                    ? "text-amber-500"
+                    : "text-slate-500";
+
+        // Hook feedback colors (#3)
+        const hookColor =
+            hookLength === 0
+                ? "text-slate-400"
+                : hookLength > hookConfig.maxLength
+                    ? "text-amber-500"
+                    : "text-emerald-500";
+
+        const renderPreview = (text) => {
+            const lines = text.split("\n");
+            const elements = [];
+            let currentList = null;
+
+            const flushList = () => {
+                if (!currentList) return;
+                if (currentList.type === "ul") {
+                    elements.push(
+                        <ul
+                            className="list-disc list-inside space-y-1"
+                            key={elements.length}
+                        >
+                            {currentList.items.map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                            ))}
+                        </ul>
+                    );
+                } else if (currentList.type === "ol") {
+                    elements.push(
+                        <ol
+                            className="list-decimal list-inside space-y-1"
+                            key={elements.length}
+                        >
+                            {currentList.items.map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                            ))}
+                        </ol>
+                    );
+                }
+                currentList = null;
+            };
+
+            lines.forEach((rawLine) => {
+                const line = rawLine.trimEnd();
+                const bulletMatch = line.match(/^•\s+(.*)/);
+                const numberMatch = line.match(/^(\d+)\.\s+(.*)/);
+
+                if (bulletMatch) {
+                    const content = bulletMatch[1];
+                    if (!currentList || currentList.type !== "ul") {
+                        flushList();
+                        currentList = { type: "ul", items: [] };
+                    }
+                    currentList.items.push(content);
+                } else if (numberMatch) {
+                    const content = numberMatch[2];
+                    if (!currentList || currentList.type !== "ol") {
+                        flushList();
+                        currentList = { type: "ol", items: [] };
+                    }
+                    currentList.items.push(content);
+                } else if (line.trim() === "") {
+                    flushList();
+                    elements.push(
+                        <div key={elements.length} className="h-2" />
+                    );
+                } else {
+                    flushList();
+                    elements.push(
+                        <p className="mb-1" key={elements.length}>
+                            {line}
+                        </p>
+                    );
+                }
+            });
+
+            flushList();
+            return <>{elements}</>;
+        };
+
+        // Warning badge styles
+        const warningStyles = {
+            warning: "bg-amber-50 text-amber-700 border-amber-200",
+            info: "bg-blue-50 text-blue-700 border-blue-200",
+            tip: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        };
+
+        return (
+            <div className="min-h-screen flex items-center justify-center p-4">
+                <div className="w-full max-w-5xl grid gap-6 md:grid-cols-[2fr,1.5fr]">
+                    {/* Editor Card */}
+                    <div className="bg-white rounded-2xl shadow-md p-6 space-y-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-900">
+                                    LinkedIn Post Editor
+                                </h1>
+                                <p className="text-sm text-slate-500">
+                                    Paste from ChatGPT (or any AI), or start from a template.
+                                    Format with Unicode bold/italic, bullets, numbers &
+                                    emojis — then paste directly into LinkedIn.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                                    Tone
+                                </label>
+                                <select
+                                    value={tone}
+                                    onChange={(e) => setTone(e.target.value)}
+                                    className="border border-slate-200 text-sm rounded-xl px-3 py-1.5 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    {TONES.map(t => (
+                                        <option key={t}>{t}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Templates - filtered by tone */}
+                        <div className="flex flex-col gap-2 border border-slate-200 rounded-xl px-3 py-3 bg-white">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-500">
+                                    Templates ({filteredTemplates.length}):
+                                </span>
+                                <select
+                                    value={selectedTemplateId}
+                                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                                    className="border border-slate-200 text-xs rounded-lg px-2 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    disabled={filteredTemplates.length === 0}
+                                >
+                                    {filteredTemplates.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={insertTemplate}
+                                    disabled={!selectedTemplateId}
+                                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Load template
+                                </button>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                                {selectedTemplateId
+                                    ? `Selected: ${TEMPLATES.find((t) => t.id === selectedTemplateId)?.description}`
+                                    : `No templates available for ${tone} tone.`}
+                            </p>
+                        </div>
+
+                        {/* Formatting Toolbar */}
+                        <div className="flex flex-wrap items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
+                            <span className="text-xs font-semibold text-slate-500 mr-1">
+                                Format:
+                            </span>
+                            <button
+                                type="button"
+                                onClick={formatBold}
+                                className="px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100"
+                            >
+                                B
+                            </button>
+                            <button
+                                type="button"
+                                onClick={formatItalic}
+                                className="px-2 py-1 text-xs italic rounded-lg border border-slate-200 bg-white hover:bg-slate-100"
+                            >
+                                I
+                            </button>
+                            <button
+                                type="button"
+                                onClick={addBullet}
+                                className="px-2 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-100"
+                            >
+                                • Bullet
+                            </button>
+                            <button
+                                type="button"
+                                onClick={addNumberedList}
+                                className="px-2 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-100"
+                            >
+                                1. 2. 3.
+                            </button>
+                        </div>
+
+                        {/* Emoji toolbar - changes with tone */}
+                        <div className="flex flex-wrap items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-white">
+                            <span className="text-xs font-semibold text-slate-500">
+                                Emojis ({tone}):
+                            </span>
+                            {currentEmojis.map((emoji, idx) => (
+                                <button
+                                    key={`${tone}-${idx}`}
+                                    type="button"
+                                    onClick={() => insertEmoji(emoji)}
+                                    className="px-1 text-lg leading-none hover:scale-110 transition-transform"
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+
+                        <textarea
+                            ref={textareaRef}
+                            value={post}
+                            onChange={handleChange}
+                            placeholder={`Paste AI content here or load a template.
+
+Then:
+• Use B / I / Bullet / 1.2.3 to format key parts.
+• Add emojis that match LinkedIn style.
+• Click "Clean for LinkedIn" to fix bullets & spacing without killing your paragraphs.
+• Copy and paste directly into LinkedIn.`}
+                            className="w-full min-h-[230px] rounded-2xl border border-slate-200 p-4 text-sm md:text-base resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-400"
+                        />
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-xs md:text-sm">
+                            <div className="space-y-1">
+                                <p className={`${charColor} font-medium`}>
+                                    {charCount} / {MAX_CHARS} characters
+                                </p>
+                                <p className="text-slate-400">
+                                    Live character counting so you stay under the 3,000
+                                    limit.
+                                </p>
+                                <label className="inline-flex items-center gap-2 text-[11px] text-slate-500 mt-1">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-slate-300"
+                                        checked={autoSave}
+                                        onChange={(e) => setAutoSave(e.target.checked)}
+                                    />
+                                    <span>Auto-save in this browser</span>
+                                </label>
+                            </div>
+
+                            <div className="flex gap-2 justify-end flex-wrap">
+                                <button
+                                    onClick={clearEditor}
+                                    type="button"
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                >
+                                    Clear
+                                </button>
+                                <button
+                                    onClick={cleanForLinkedIn}
+                                    type="button"
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-800 hover:bg-slate-200"
+                                >
+                                    Clean for LinkedIn
+                                </button>
+                                <button
+                                    onClick={copyToClipboard}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 shadow-sm"
+                                >
+                                    Copy post
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Preview Card */}
+                    <div className="bg-white rounded-2xl shadow-md p-6 space-y-4">
+                        <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                            Preview
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                {tone}
+                            </span>
+                        </h2>
+
+                        <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50 space-y-3">
+                            <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                                    Hook (first line)
+                                </p>
+                                <p
+                                    className={`text-sm md:text-base font-medium break-words ${
+                                        hook ? "text-slate-900" : "text-slate-400"
+                                    }`}
+                                >
+                                    {hook ||
+                                        "Your first line appears here. Make people stop scrolling."}
+                                </p>
+                                {/* Tone-aware hook feedback (#3) */}
+                                <p className={`text-xs mt-1 ${hookColor}`}>
+                                    {hookLength === 0
+                                        ? hookConfig.emptyAdvice
+                                        : hookLength > hookConfig.maxLength
+                                            ? `${hookLength} chars — ${hookConfig.warning}`
+                                            : `${hookLength} chars — ${hookConfig.goodFeedback}`}
+                                </p>
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-200">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                                    Full post
+                                </p>
+                                <div className="text-sm md:text-base text-slate-800 max-h-[260px] overflow-auto whitespace-pre-wrap">
+                                    {post ? (
+                                        renderPreview(post)
+                                    ) : (
+                                        <span className="text-slate-400">
+                                            Your full post preview will show here as you type or
+                                            after you load a template.
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tone warnings (#4) */}
+                        {toneWarnings.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                    Tone feedback
+                                </p>
+                                {toneWarnings.map((w, idx) => (
+                                    <div
+                                        key={idx}
+                                        className={`text-xs px-3 py-2 rounded-lg border ${warningStyles[w.type]}`}
+                                    >
+                                        {w.type === "tip" && "💡 "}
+                                        {w.type === "info" && "ℹ️ "}
+                                        {w.type === "warning" && "⚠️ "}
+                                        {w.text}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="text-xs text-slate-500 space-y-1">
+                            <p className="font-semibold text-slate-600">
+                                This editor is built to:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1">
+                                <li>Give you plug-and-play LinkedIn templates.</li>
+                                <li>Keep AI-generated bullet points readable.</li>
+                                <li>Apply Unicode bold / italic that survives on LinkedIn.</li>
+                                <li>Support both bullets and numbered lists.</li>
+                                <li>Highlight and optimize your hook.</li>
+                                <li>Auto-save locally (with a toggle) and clear in one click.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<LinkedInPostEditor />);
+</script>
+</body>
+</html>

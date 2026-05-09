@@ -13,6 +13,18 @@ export type Project = {
 
 export const fullstackProjects: Project[] = [
     {
+        title: "MineBuddy — FB Live Order Management",
+        description:
+            "An order management platform for Filipino Facebook Live sellers, handling the full 'mine!' claim workflow from livestream to delivery. Features a 10-state order lifecycle, hybrid inventory splitting, JWT auth with refresh token rotation, Flyway migrations, real-time KPI dashboard, and capital tracking for profit insights. Self-hosted on a hardened Ubuntu VPS with Docker, Caddy auto-HTTPS, and automated daily backups.",
+        tags: ["Java 21", "Spring Boot", "Angular 19", "MariaDB", "Docker", "Caddy", "Flyway", "JWT", "TailwindCSS", "VPS Linux Deployment"],
+        links: {
+            demo: "https://minebuddy.store",
+            github: "https://github.com/bhetypen/minebuddy-backend",
+        },
+        thumbnail: "/images/minebuddy.png",
+    },
+
+    {
         title: "LocalMarktPlatz+ (On Development)",
         description:
             "A marketplace for local events featuring interactive stall maps, vendor applications with approvals, realtime chat/notifications, a product catalog, invoicing (PDF + QR), and public landing pages.",

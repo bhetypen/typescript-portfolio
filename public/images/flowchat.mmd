@@ -1,0 +1,11 @@
+flowchart TD
+    A[python -m requirements_gui] --> B[QApplication starts]
+    B --> C[RequirementsWindow init]
+    C --> D[Load state: default space R.Gen]
+    C --> E[Render UI: form + preview/editor tabs]
+    E --> F{User edits?}
+    F -->|Form change| G[generate_markdown()]
+F -->|Markdown tab edit| H[parse_markdown()]
+F -->|Autosave timer| K[Write ReqRequest_autosave.md]
+J --> L[Update _current_file/_dirty]
+K --> L
