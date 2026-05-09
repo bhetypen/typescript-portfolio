@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Requirements Request GUI</title>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        tailwind.config = { darkMode: 'class' };
+    </script>
+
+    <style>
+        /* Markdown Preview Styles - makes rendered markdown look good */
+        .preview-content h1 { font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem; border-bottom: 2px solid #4b5563; padding-bottom: 0.5rem; }
+        .preview-content h2 { font-size: 1.5rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #60a5fa; }
+        .preview-content p { margin-bottom: 0.75rem; }
+        .preview-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .preview-content th, .preview-content td { border: 1px solid #4b5563; padding: 0.5rem; text-align: left; }
+        .preview-content th { background-color: #374151; font-weight: 600; }
+        .preview-content ul, .preview-content ol { margin-left: 1.5rem; margin-bottom: 0.75rem; }
+        .preview-content li { margin-bottom: 0.25rem; }
+        .preview-content strong { font-weight: 600; color: #93c5fd; }
+        .preview-content a { color: #60a5fa; text-decoration: underline; }
+
+        /* Editor Textarea - monospace font for markdown editing */
+        .editor-textarea {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            tab-size: 2;
+        }
+
+        /* Description Textarea - multi-line, resizable */
+        .description-textarea {
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Requirement Description Textarea - compact multi-line for table cells */
+        .req-description-textarea {
+            font-family: inherit;
+            font-size: 13px;
+            line-height: 1.4;
+            min-height: 60px;
+            resize: vertical;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState, useMemo, useEffect, useRef } = React;
+
+    /* ==========================================================================
+       CONFIGURATION
+       ========================================================================== */
+
+    // localStorage key for persisting form data between sessions
+    const STORAGE_KEY = 'reqrequest_data';
+
+    /* ==========================================================================
+       MAIN APPLICATION COMPONENT
+       ========================================================================== */
+    function App() {
+
+        /* ----------------------------------------------------------------------
+           STATE MANAGEMENT
+           ---------------------------------------------------------------------- */
+
+        // View mode toggle: 'form' (Form Builder) or 'editor' (Markdown Editor)
+        const [viewMode, setViewMode] = useState('form');
+
+        // Form data state - these map directly to the markdown output structure
+        const [title, setTitle] = useState("");
+        const [description, setDescription] = useState("");
+        const [spaces, setSpaces] = useState([{ name: "R.Gen", reqs: [] }]);  // Requirement spaces
+        const [parameters, setParameters] = useState([{ name: "", range: "", defaultValue: "" }]);
+        const [links, setLinks] = useState([""]);  // Confluence links
+        const [annex, setAnnex] = useState([{ type: "Input", name: "", description: "" }]);
+
+        // Editor state
+        const [markdownContent, setMarkdownContent] = useState("");  // Raw markdown for editor mode
+        const [lastSaved, setLastSaved] = useState(null);
+        const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+
+        // UI state
+        const [darkMode, setDarkMode] = useState(true);
+        const [notification, setNotification] = useState(null);
+        const editorRef = useRef(null);
+
+        /* ----------------------------------------------------------------------
+           BIDIRECTIONAL SYNC CONTROL
+           These refs prevent infinite loops when syncing between form and editor.
+           When form changes → update markdown (but don't re-parse it back)
+           When editor changes → update form (but don't re-generate markdown)
+           ---------------------------------------------------------------------- */
+        const isSyncingFromForm = useRef(false);
+        const isSyncingFromEditor = useRef(false);
+
+        /* ----------------------------------------------------------------------
+           LIFECYCLE: Load saved data from localStorage on mount
+           ---------------------------------------------------------------------- */
+        useEffect(() => {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    if (data.title) setTitle(data.title);
+                    if (data.description) setDescription(data.description);
+                    if (data.spaces) setSpaces(data.spaces);
+                    if (data.parameters) setParameters(data.parameters);
+                    if (data.links) setLinks(data.links);
+                    if (data.annex) setAnnex(data.annex);
+                    if (data.markdownContent) setMarkdownContent(data.markdownContent);
+                    if (data.lastSaved) setLastSaved(new Date(data.lastSaved));
+                } catch (e) {
+                    console.error('Failed to load saved data:', e);
+                }
+            }
+        }, []);
+
+        /* ----------------------------------------------------------------------
+           LIFECYCLE: Auto-save to localStorage (debounced, 1 second delay)
+           Protects against accidental browser closing
+           ---------------------------------------------------------------------- */
+        useEffect(() => {
+            if (!autoSaveEnabled) return;
+
+            const saveTimer = setTimeout(() => {
+                const data = {
+                    title,
+                    description,
+                    spaces,
+                    parameters,
+                    links,
+                    annex,
+                    markdownContent,
+                    lastSaved: new Date().toISOString()
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                setLastSaved(new Date());
+            }, 1000);
+
+            return () => clearTimeout(saveTimer);
+        }, [title, description, spaces, parameters, links, annex, markdownContent, autoSaveEnabled]);
+
+        /* ----------------------------------------------------------------------
+           LIFECYCLE: Toggle dark mode CSS class on document root
+           ---------------------------------------------------------------------- */
+        useEffect(() => {
+            document.documentElement.classList.toggle("dark", darkMode);
+        }, [darkMode]);
+
+        /* ----------------------------------------------------------------------
+           BIDIRECTIONAL SYNC: Form → Markdown
+           When any form field changes, regenerate the markdown content.
+           Uses isSyncingFromEditor ref to prevent re-parsing when editor triggers this.
+           ---------------------------------------------------------------------- */
+        useEffect(() => {
+            if (isSyncingFromEditor.current) {
+                isSyncingFromEditor.current = false;
+                return;
+            }
+
+            isSyncingFromForm.current = true;
+            const md = generateMarkdownFromFormData();
+            setMarkdownContent(md);
+        }, [title, description, spaces, parameters, links, annex]);
+
+        /* ----------------------------------------------------------------------
+           BIDIRECTIONAL SYNC: Markdown → Form
+           When markdown editor content changes, parse it back into form fields.
+           Uses isSyncingFromForm ref to prevent regeneration when form triggers this.
+           ---------------------------------------------------------------------- */
+        const syncEditorToForm = (md) => {
+            if (isSyncingFromForm.current) {
+                isSyncingFromForm.current = false;
+                return;
+            }
+
+            isSyncingFromEditor.current = true;
+            parseMarkdownToForm(md);
+        };
+
+        /* ----------------------------------------------------------------------
+           LIFECYCLE: Debounced editor sync
+           Only sync editor → form when in editor mode, with 500ms delay
+           ---------------------------------------------------------------------- */
+        useEffect(() => {
+            if (viewMode !== 'editor') return;
+
+            const timer = setTimeout(() => {
+                syncEditorToForm(markdownContent);
+            }, 500);
+
+            return () => clearTimeout(timer);
+        }, [markdownContent, viewMode]);
+
+        /* ----------------------------------------------------------------------
+           FORM HANDLERS: Requirement Spaces
+           Each space contains multiple requirements with ID, type, description
+           ---------------------------------------------------------------------- */
+        const addSpace = () => setSpaces([...spaces, { name: "R.NewSpace", reqs: [] }]);
+        const deleteSpace = (idx) => setSpaces(spaces.filter((_, i) => i !== idx));
+        const updateSpaceName = (idx, value) => {
+            const newSpaces = [...spaces];
+            newSpaces[idx].name = value;
+            setSpaces(newSpaces);
+        };
+
+        /* ----------------------------------------------------------------------
+           FORM HANDLERS: Requirements within a Space
+           Auto-increments requirement number based on existing max
+           ---------------------------------------------------------------------- */
+        const addRequirement = (spaceIdx) => {
+            const newSpaces = [...spaces];
+            const nextNum =
+                newSpaces[spaceIdx].reqs.length > 0
+                    ? Math.max(...newSpaces[spaceIdx].reqs.map(r => Number(r.number) || 0)) + 1
+                    : 1;
+            newSpaces[spaceIdx].reqs.push({ number: nextNum, type: "New", description: "" });
+            setSpaces(newSpaces);
+        };
+        const updateReq = (spaceIdx, reqIdx, field, value) => {
+            const newSpaces = [...spaces];
+            newSpaces[spaceIdx].reqs[reqIdx][field] = value;
+            setSpaces(newSpaces);
+        };
+        const deleteReq = (spaceIdx, reqIdx) => {
+            const newSpaces = [...spaces];
+            newSpaces[spaceIdx].reqs.splice(reqIdx, 1);
+            setSpaces(newSpaces);
+        };
+
+        /* ----------------------------------------------------------------------
+           FORM HANDLERS: Parameters table
+           ---------------------------------------------------------------------- */
+        const addParameter = () => setParameters([...parameters, { name: "", range: "", defaultValue: "" }]);
+        const updateParameter = (idx, field, value) => {
+            const newParams = [...parameters];
+            newParams[idx][field] = value;
+            setParameters(newParams);
+        };
+
+        /* ----------------------------------------------------------------------
+           FORM HANDLERS: Confluence Links
+           ---------------------------------------------------------------------- */
+        const addLink = () => setLinks([...links, ""]);
+        const updateLink = (idx, value) => {
+            const newLinks = [...links];
+            newLinks[idx] = value;
+            setLinks(newLinks);
+        };
+        const removeLink = (idx) => setLinks(links.filter((_, i) => i !== idx));
+
+        /* ----------------------------------------------------------------------
+           FORM HANDLERS: Annex entries (Input/Output/CAN Msg/Pin/Other)
+           ---------------------------------------------------------------------- */
+        const addAnnex = () => setAnnex([...annex, { type: "Input", name: "", description: "" }]);
+        const updateAnnex = (idx, field, value) => {
+            const newAnnex = [...annex];
+            newAnnex[idx][field] = value;
+            setAnnex(newAnnex);
+        };
+        const deleteAnnex = (idx) => setAnnex(annex.filter((_, i) => i !== idx));
+
+        /* ----------------------------------------------------------------------
+           VALIDATION: Detect duplicate requirement IDs
+           Prevents export if duplicates exist (e.g., R.Gen.1 appears twice)
+           ---------------------------------------------------------------------- */
+        const duplicates = useMemo(() => {
+            const ids = [];
+            spaces.forEach(space =>
+                space.reqs.forEach(r => ids.push(`${space.name}.${r.number}`))
+            );
+            return ids.filter((id, index) => ids.indexOf(id) !== index);
+        }, [spaces]);
+
+        const hasDuplicates = duplicates.length > 0;
+
+        /* ----------------------------------------------------------------------
+           UTILITY: Format date in German format (DDMMYYYY)
+           Used for markdown output and file naming
+           ---------------------------------------------------------------------- */
+        const germanDate = (date = new Date()) => {
+            const d = String(date.getDate()).padStart(2, "0");
+            const m = String(date.getMonth() + 1).padStart(2, "0");
+            const y = date.getFullYear();
+            return `${d}${m}${y}`;
+        };
+
+        /* ----------------------------------------------------------------------
+           KEYBOARD SHORTCUTS: Ctrl+Enter to add new row
+           Works in any input field - adds a new row to the current section
+           ---------------------------------------------------------------------- */
+        const handleCtrlEnter = (e, addFn, ...args) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                addFn(...args);
+            }
+        };
+
+        /* ----------------------------------------------------------------------
+           MARKDOWN GENERATION: Convert form data to markdown string
+           This is the core output function - generates the structured document
+           ---------------------------------------------------------------------- */
+        const generateMarkdownFromFormData = () => {
+            const today = new Date();
+            const dateStr = germanDate(today);
+
+            // Build markdown string section by section
+            let md = `# Requirement Request: ${title}\n\n`;
+            md += `**Date:** ${dateStr}\n\n`;
+
+            // Handle multi-line description - preserve paragraphs
+            if (description.trim()) {
+                md += `## Description\n\n${description.trim()}\n\n`;
+            }
+
+            // Confluence Links section (only if links exist)
+            if (links.some(l => l.trim())) {
+                md += `## Confluence Links\n\n`;
+                links.forEach(l => l.trim() && (md += `- ${l.trim()}\n`));
+                md += `\n`;
+            }
+
+            // Requirement Spaces - each space gets its own section with a table
+            spaces.forEach(space => {
+                md += `## ${space.name}\n\n`;
+                md += `| ID | Type | Description |\n| --- | --- | --- |\n`;
+                space.reqs.forEach(r => {
+                    const id = `${space.name}.${r.number}`;
+                    // Escape pipe characters and handle newlines for markdown tables
+                    const escapedDesc = r.description.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+                    md += `| ${id} | ${r.type} | ${escapedDesc} |\n`;
+                });
+                md += `\n`;
+            });
+
+            // Parameters section (only if parameters exist)
+            if (parameters.some(p => p.name)) {
+                md += `## Parameters\n\n`;
+                md += `| Name | Range | Default |\n| --- | --- | --- |\n`;
+                parameters.forEach(p => {
+                    if (p.name) md += `| ${p.name} | ${p.range} | ${p.defaultValue} |\n`;
+                });
+                md += `\n`;
+            }
+
+            // Annex section (only if annex entries exist)
+            if (annex.some(a => a.name)) {
+                md += `## Annex\n\n`;
+                md += `| Type | Name | Description |\n| --- | --- | --- |\n`;
+                annex.forEach(a => {
+                    if (a.name) {
+                        // Escape pipe characters and handle newlines for markdown tables
+                        const escapedDesc = a.description.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+                        md += `| ${a.type} | ${a.name} | ${escapedDesc} |\n`;
+                    }
+                });
+                md += `\n`;
+            }
+
+            return md;
+        };
+
+        const generateMarkdownFromForm = generateMarkdownFromFormData;
+
+        /* ----------------------------------------------------------------------
+           NAVIGATION: Switch to Editor view
+           Content is already synced via bidirectional sync, just switch view
+           ---------------------------------------------------------------------- */
+        const sendToEditor = () => {
+            setViewMode('editor');
+        };
+
+        /* ----------------------------------------------------------------------
+           FILE EXPORT: Download markdown as .md file
+           ---------------------------------------------------------------------- */
+        const downloadMarkdown = () => {
+            const content = viewMode === 'editor' ? markdownContent : generateMarkdownFromForm();
+            const blob = new Blob([content], { type: "text/markdown" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `ReqRequest_${germanDate()}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        /* ----------------------------------------------------------------------
+           MARKDOWN PARSER: Helper to extract cells from table rows
+           ---------------------------------------------------------------------- */
+        const parseTableRow = (row) => {
+            let cleanRow = row.trim();
+            if (cleanRow.startsWith('|')) cleanRow = cleanRow.substring(1);
+            if (cleanRow.endsWith('|')) cleanRow = cleanRow.slice(0, -1);
+            return cleanRow.split('|').map(c => c.trim());
+        };
+
+        /* ----------------------------------------------------------------------
+           MARKDOWN PARSER: Parse markdown and populate form fields
+           This is the reverse of generateMarkdownFromForm()
+           ---------------------------------------------------------------------- */
+        const parseMarkdownToForm = (md) => {
+            try {
+                console.log('Parsing markdown:', md.substring(0, 200));
+
+                // Extract title from "# Requirement Request: <title>"
+                const titleMatch = md.match(/^#\s+Requirement Request:\s*(.*)$/m);
+                if (titleMatch) {
+                    console.log('Found title:', titleMatch[1]);
+                    setTitle(titleMatch[1].trim());
+                }
+
+                // Extract description section (multi-line)
+                const descSectionMatch = md.match(/##\s*Description\s*\n+([\s\S]*?)(?=\n##|\n*$)/);
+                if (descSectionMatch) {
+                    console.log('Found description section:', descSectionMatch[1].trim());
+                    setDescription(descSectionMatch[1].trim());
+                } else {
+                    // Fallback to old single-line format
+                    const descMatch = md.match(/\*\*Description:\*\*\s*(.*)/);
+                    if (descMatch) {
+                        console.log('Found description:', descMatch[1]);
+                        setDescription(descMatch[1].trim());
+                    }
+                }
+
+                // Extract Confluence Links
+                const linksMatch = md.match(/##\s*Confluence Links[\s\S]*?(?=\n##|\n*$)/);
+                if (linksMatch) {
+                    const linkLines = linksMatch[0].match(/^-\s+(.+)$/gm);
+                    if (linkLines && linkLines.length > 0) {
+                        const parsedLinks = linkLines.map(l => l.replace(/^-\s+/, '').trim());
+                        console.log('Found links:', parsedLinks);
+                        setLinks(parsedLinks);
+                    } else {
+                        setLinks(['']);
+                    }
+                } else {
+                    setLinks(['']);
+                }
+
+                // Extract Parameters section
+                const paramsMatch = md.match(/##\s*Parameters\s*\n+\|[^\n]+\|\s*\n\|[\s\-|]+\|\s*\n([\s\S]*?)(?=\n##|\n*$)/);
+                if (paramsMatch) {
+                    const paramLines = paramsMatch[1].trim().split('\n').filter(line => line.trim().startsWith('|'));
+                    const parsedParams = paramLines.map(line => {
+                        const cells = parseTableRow(line);
+                        return {
+                            name: cells[0] || '',
+                            range: cells[1] || '',
+                            defaultValue: cells[2] || ''
+                        };
+                    }).filter(p => p.name);
+                    console.log('Found parameters:', parsedParams);
+                    if (parsedParams.length > 0) {
+                        setParameters(parsedParams);
+                    } else {
+                        setParameters([{ name: '', range: '', defaultValue: '' }]);
+                    }
+                } else {
+                    setParameters([{ name: '', range: '', defaultValue: '' }]);
+                }
+
+                // Extract Annex section
+                const annexMatch = md.match(/##\s*Annex\s*\n+\|[^\n]+\|\s*\n\|[\s\-|]+\|\s*\n([\s\S]*?)(?=\n##|\n*$)/);
+                if (annexMatch) {
+                    const annexLines = annexMatch[1].trim().split('\n').filter(line => line.trim().startsWith('|'));
+                    const parsedAnnex = annexLines.map(line => {
+                        const cells = parseTableRow(line);
+                        return {
+                            type: cells[0] || 'Input',
+                            name: cells[1] || '',
+                            // Unescape pipes and convert <br> back to newlines
+                            description: (cells[2] || '').replace(/\\\|/g, '|').replace(/<br>/gi, '\n')
+                        };
+                    }).filter(a => a.name);
+                    console.log('Found annex:', parsedAnnex);
+                    if (parsedAnnex.length > 0) {
+                        setAnnex(parsedAnnex);
+                    } else {
+                        setAnnex([{ type: 'Input', name: '', description: '' }]);
+                    }
+                } else {
+                    setAnnex([{ type: 'Input', name: '', description: '' }]);
+                }
+
+                // Extract Requirement Spaces - find all ## sections with ID|Type|Description tables
+                const parsedSpaces = [];
+
+                // Split by ## headers and process each section
+                const sections = md.split(/(?=^##\s+)/m);
+
+                for (const section of sections) {
+                    // Check if this section has a requirements table (ID | Type | Description)
+                    if (section.match(/\|\s*ID\s*\|\s*Type\s*\|\s*Description\s*\|/i)) {
+                        // Extract space name from header
+                        const headerMatch = section.match(/^##\s+(.+?)[\s]*\n/);
+                        if (headerMatch) {
+                            const spaceName = headerMatch[1].trim();
+
+                            // Skip non-requirement sections
+                            if (spaceName.toLowerCase() === 'parameters' ||
+                                spaceName.toLowerCase() === 'annex' ||
+                                spaceName.toLowerCase() === 'confluence links' ||
+                                spaceName.toLowerCase() === 'description') {
+                                continue;
+                            }
+
+                            // Find table rows (after the header row and separator)
+                            const tableMatch = section.match(/\|\s*ID\s*\|\s*Type\s*\|\s*Description\s*\|\s*\n\|[\s\-|]+\|\s*\n([\s\S]*?)(?=\n\n|\n##|$)/i);
+
+                            if (tableMatch) {
+                                const tableRows = tableMatch[1].trim().split('\n').filter(line => line.trim().startsWith('|'));
+
+                                const reqs = tableRows.map(row => {
+                                    const cells = parseTableRow(row);
+                                    // ID is like "R.Gen.1" or "SpaceName.1", extract the number
+                                    const fullId = cells[0] || '';
+                                    const idParts = fullId.split('.');
+                                    const number = parseInt(idParts[idParts.length - 1]) || 1;
+
+                                    return {
+                                        number: number,
+                                        type: cells[1] || 'New',
+                                        // Unescape pipes and convert <br> back to newlines
+                                        description: (cells[2] || '').replace(/\\\|/g, '|').replace(/<br>/gi, '\n')
+                                    };
+                                }).filter(r => r.number || r.description);
+
+                                console.log('Found space:', spaceName, 'with reqs:', reqs);
+                                parsedSpaces.push({ name: spaceName, reqs });
+                            }
+                        }
+                    }
+                }
+
+                if (parsedSpaces.length > 0) {
+                    setSpaces(parsedSpaces);
+                } else {
+                    // If no spaces found, keep default
+                    setSpaces([{ name: 'R.Gen', reqs: [] }]);
+                }
+
+                console.log('Parsing complete. Spaces:', parsedSpaces.length);
+                return true;
+            } catch (e) {
+                console.error('Error parsing markdown:', e);
+                return false;
+            }
+        };
+
+        const loadMarkdownFile = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const content = event.target.result;
+
+                    // Set markdown content first
+                    isSyncingFromEditor.current = true;
+                    setMarkdownContent(content);
+
+                    // Try to parse and populate form
+                    const parsed = parseMarkdownToForm(content);
+
+                    if (parsed) {
+                        setNotification({ type: 'success', message: `✓ Loaded "${file.name}" - Form and editor are synced!` });
+                    } else {
+                        setNotification({ type: 'warning', message: `⚠ Loaded "${file.name}" but couldn't parse all form data.` });
+                    }
+
+                    // Clear notification after 5 seconds
+                    setTimeout(() => setNotification(null), 5000);
+                };
+                reader.readAsText(file);
+            }
+            // Reset input so same file can be loaded again
+            e.target.value = '';
+        };
+
+        const clearAllData = () => {
+            if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+                localStorage.removeItem(STORAGE_KEY);
+                setTitle("");
+                setDescription("");
+                setSpaces([{ name: "R.Gen", reqs: [] }]);
+                setParameters([{ name: "", range: "", defaultValue: "" }]);
+                setLinks([""]);
+                setAnnex([{ type: "Input", name: "", description: "" }]);
+                setMarkdownContent("");
+                setLastSaved(null);
+            }
+        };
+
+        const manualSave = () => {
+            const data = {
+                title,
+                description,
+                spaces,
+                parameters,
+                links,
+                annex,
+                markdownContent,
+                lastSaved: new Date().toISOString()
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            setLastSaved(new Date());
+        };
+
+        // Render preview HTML for editor
+        const previewHtml = useMemo(() => {
+            if (!markdownContent) return '<p class="text-gray-500 italic">Start typing in the editor to see a preview...</p>';
+            try {
+                return marked.parse(markdownContent);
+            } catch (e) {
+                return '<p class="text-red-500">Error parsing markdown</p>';
+            }
+        }, [markdownContent]);
+
+        // Render live preview HTML from form data
+        const formPreviewHtml = useMemo(() => {
+            const md = generateMarkdownFromForm();
+            if (!md.trim() || md === `# Requirement Request: \n\n**Date:** ${germanDate()}\n\n## R.Gen\n\n| ID | Type | Description |\n| --- | --- | --- |\n\n`) {
+                return '<p class="text-gray-500 italic">Fill in the form to see a live preview...</p>';
+            }
+            try {
+                return marked.parse(md);
+            } catch (e) {
+                return '<p class="text-red-500">Error parsing markdown</p>';
+            }
+        }, [title, description, spaces, parameters, links, annex]);
+
+        // Handle tab key in editor
+        const handleEditorKeyDown = (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                const value = e.target.value;
+                setMarkdownContent(value.substring(0, start) + '  ' + value.substring(end));
+                setTimeout(() => {
+                    e.target.selectionStart = e.target.selectionEnd = start + 2;
+                }, 0);
+            }
+        };
+
+        return (
+            <div className="min-h-screen">
+                {/* Header */}
+                <div className="bg-white dark:bg-gray-800 shadow-md p-4 sticky top-0 z-10">
+                    <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+                        <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                            Requirements Request GUI
+                        </h1>
+
+                        {/* View Toggle */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setViewMode('form')}
+                                className={`px-4 py-2 rounded-l-lg font-medium transition-colors ${
+                                    viewMode === 'form'
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                }`}
+                            >
+                                📝 Form Builder
+                            </button>
+                            <button
+                                onClick={() => setViewMode('editor')}
+                                className={`px-4 py-2 rounded-r-lg font-medium transition-colors ${
+                                    viewMode === 'editor'
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                }`}
+                            >
+                                ✏️ Editor + Preview
+                            </button>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <label className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded cursor-pointer text-sm">
+                                📂 Load .md
+                                <input type="file" accept=".md,.txt" onChange={loadMarkdownFile} className="hidden" />
+                            </label>
+                            <button
+                                onClick={downloadMarkdown}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm"
+                            >
+                                💾 Download .md
+                            </button>
+                            <button
+                                onClick={manualSave}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-sm"
+                            >
+                                💾 Save
+                            </button>
+                            <button
+                                onClick={clearAllData}
+                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm"
+                            >
+                                🗑️ Clear
+                            </button>
+                            <button
+                                onClick={() => setDarkMode(!darkMode)}
+                                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
+                            >
+                                {darkMode ? "☀️" : "🌙"}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Status Bar */}
+                    <div className="max-w-7xl mx-auto mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+              <span className="flex items-center gap-1">
+                <span className={`w-2 h-2 rounded-full ${autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                Auto-save: {autoSaveEnabled ? 'On' : 'Off'}
+              </span>
+                        {lastSaved && (
+                            <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
+                        )}
+                        <button
+                            onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
+                            className="text-indigo-500 hover:text-indigo-400 underline"
+                        >
+                            Toggle auto-save
+                        </button>
+                        <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">
+                            💡 Ctrl+Enter adds row | Form ↔ Editor synced
+                        </span>
+                    </div>
+
+                    {/* Notification */}
+                    {notification && (
+                        <div className={`max-w-7xl mx-auto mt-2 p-2 rounded text-sm ${
+                            notification.type === 'success'
+                                ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200'
+                                : 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200'
+                        }`}>
+                            {notification.message}
+                        </div>
+                    )}
+                </div>
+
+                {/* Main Content */}
+                <div className="p-6">
+                    {viewMode === 'form' ? (
+                        /* FORM VIEW */
+                        <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            {/* Form Panel */}
+                            <div className="bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6 max-h-[calc(100vh-180px)] overflow-y-auto">
+                                {/* Title */}
+                                <div className="mb-4">
+                                    <label className="block font-medium mb-1">Title</label>
+                                    <input
+                                        className="border rounded p-2 w-full dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        placeholder="Request title..."
+                                    />
+                                </div>
+
+                                {/* Description - Multi-line textarea */}
+                                <div className="mb-6">
+                                    <label className="block font-medium mb-1">Description</label>
+                                    <textarea
+                                        className="description-textarea border rounded p-3 w-full dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Enter a detailed description...&#10;&#10;You can write multiple paragraphs here.&#10;Each line break will be preserved in the markdown output."
+                                        rows={5}
+                                    />
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Supports multiple paragraphs. Press Enter for new lines.
+                                    </p>
+                                </div>
+
+                                {/* Confluence Links */}
+                                <h2 className="text-xl font-semibold mb-2">Confluence Links</h2>
+                                {links.map((l, i) => (
+                                    <div key={i} className="flex items-center gap-2 mb-2">
+                                        <input
+                                            className="border rounded p-2 flex-grow dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                            value={l}
+                                            onChange={(e) => updateLink(i, e.target.value)}
+                                            onKeyDown={(e) => handleCtrlEnter(e, addLink)}
+                                            placeholder="https://confluence.company.com/page"
+                                        />
+                                        <button onClick={() => removeLink(i)} className="text-red-500 font-bold hover:text-red-700">×</button>
+                                    </div>
+                                ))}
+                                <button onClick={addLink} className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 px-2 py-1 rounded mb-6">+ Add Link</button>
+
+                                {/* Requirement Spaces */}
+                                <h2 className="text-xl font-semibold mb-2">Requirement Spaces</h2>
+                                {spaces.map((space, i) => (
+                                    <div key={i} className="border dark:border-gray-700 rounded-lg p-4 mb-6 bg-gray-50 dark:bg-gray-700">
+                                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                                            <label className="font-medium">Space:</label>
+                                            <input className="border rounded p-1 w-40 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100" value={space.name} onChange={(e) => updateSpaceName(i, e.target.value)} />
+                                            <button onClick={() => addRequirement(i)} className="ml-auto bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-2 py-1 rounded">+ Add Requirement</button>
+                                            <button onClick={() => deleteSpace(i)} className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-100 px-2 py-1 rounded">✕ Delete Space</button>
+                                        </div>
+
+                                        <table className="w-full border dark:border-gray-600 mb-2 text-sm">
+                                            <thead className="bg-gray-100 dark:bg-gray-800">
+                                            <tr>
+                                                <th className="border dark:border-gray-600 p-2">ID</th>
+                                                <th className="border dark:border-gray-600 p-2">#</th>
+                                                <th className="border dark:border-gray-600 p-2">Type</th>
+                                                <th className="border dark:border-gray-600 p-2">Description</th>
+                                                <th className="border dark:border-gray-600 p-2 w-12"></th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            {space.reqs.map((r, j) => {
+                                                const fullId = `${space.name}.${r.number}`;
+                                                const isDup = duplicates.includes(fullId);
+                                                return (
+                                                    <tr key={j} className={`${isDup ? "bg-red-50 dark:bg-red-900/40" : "dark:bg-gray-800"}`}>
+                                                        <td className="border dark:border-gray-600 p-2 text-center">{space.name}</td>
+                                                        <td className="border dark:border-gray-600 p-2 text-center">
+                                                            <input
+                                                                type="number"
+                                                                className={`border rounded p-1 w-20 text-center dark:bg-gray-700 dark:border-gray-500 ${isDup ? "border-red-500" : ""}`}
+                                                                value={r.number}
+                                                                onChange={(e) => updateReq(i, j, "number", e.target.value)}
+                                                                onKeyDown={(e) => handleCtrlEnter(e, addRequirement, i)}
+                                                            />
+                                                        </td>
+                                                        <td className="border dark:border-gray-600 p-2">
+                                                            <select
+                                                                className="border rounded p-1 w-full dark:bg-gray-700 dark:border-gray-500"
+                                                                value={r.type}
+                                                                onChange={(e) => updateReq(i, j, "type", e.target.value)}
+                                                                onKeyDown={(e) => handleCtrlEnter(e, addRequirement, i)}
+                                                            >
+                                                                <option>New</option>
+                                                                <option>Change</option>
+                                                                <option>Delete</option>
+                                                            </select>
+                                                        </td>
+                                                        <td className="border dark:border-gray-600 p-2">
+                                                            <textarea
+                                                                className="req-description-textarea border rounded p-1 w-full dark:bg-gray-700 dark:border-gray-500"
+                                                                value={r.description}
+                                                                onChange={(e) => updateReq(i, j, "description", e.target.value)}
+                                                                onKeyDown={(e) => handleCtrlEnter(e, addRequirement, i)}
+                                                                placeholder="Requirement text...&#10;(supports multiple lines)"
+                                                                rows={2}
+                                                            />
+                                                        </td>
+                                                        <td className="border dark:border-gray-600 p-2 text-center">
+                                                            <button onClick={() => deleteReq(i, j)} className="text-red-500 font-bold hover:text-red-700">×</button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ))}
+                                <button onClick={addSpace} className="bg-blue-200 dark:bg-blue-900 text-blue-900 dark:text-blue-100 px-3 py-1 rounded mb-6">+ Add Requirement Space</button>
+
+                                {/* Parameters */}
+                                <h2 className="text-xl font-semibold mb-2">Parameters</h2>
+                                <table className="w-full border dark:border-gray-600 mb-4 text-sm">
+                                    <thead className="bg-gray-100 dark:bg-gray-800">
+                                    <tr>
+                                        <th className="border dark:border-gray-600 p-2">Name</th>
+                                        <th className="border dark:border-gray-600 p-2">Range</th>
+                                        <th className="border dark:border-gray-600 p-2">Default</th>
+                                        <th className="border dark:border-gray-600 p-2"></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {parameters.map((p, i) => (
+                                        <tr key={i} className="dark:bg-gray-700">
+                                            <td className="border dark:border-gray-600 p-2">
+                                                <input
+                                                    className="w-full border rounded p-1 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+                                                    value={p.name}
+                                                    onChange={(e) => updateParameter(i, "name", e.target.value)}
+                                                    onKeyDown={(e) => handleCtrlEnter(e, addParameter)}
+                                                />
+                                            </td>
+                                            <td className="border dark:border-gray-600 p-2">
+                                                <input
+                                                    className="w-full border rounded p-1 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+                                                    value={p.range}
+                                                    onChange={(e) => updateParameter(i, "range", e.target.value)}
+                                                    onKeyDown={(e) => handleCtrlEnter(e, addParameter)}
+                                                />
+                                            </td>
+                                            <td className="border dark:border-gray-600 p-2">
+                                                <input
+                                                    className="w-full border rounded p-1 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+                                                    value={p.defaultValue}
+                                                    onChange={(e) => updateParameter(i, "defaultValue", e.target.value)}
+                                                    onKeyDown={(e) => handleCtrlEnter(e, addParameter)}
+                                                />
+                                            </td>
+                                            <td className="border dark:border-gray-600 p-2 text-center">
+                                                <button onClick={() => setParameters(parameters.filter((_, idx) => idx !== i))} className="text-red-500 font-bold hover:text-red-700">×</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                                <button onClick={addParameter} className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 px-2 py-1 rounded mb-6">+ Add Parameter</button>
+
+                                {/* Annex */}
+                                <h2 className="text-xl font-semibold mb-2">Annex</h2>
+                                <table className="w-full border dark:border-gray-600 mb-4 text-sm">
+                                    <thead className="bg-gray-100 dark:bg-gray-800">
+                                    <tr><th className="border dark:border-gray-600 p-2">Type</th><th className="border dark:border-gray-600 p-2">Name</th><th className="border dark:border-gray-600 p-2">Description</th><th className="border dark:border-gray-600 p-2"></th></tr>
+                                    </thead>
+                                    <tbody>
+                                    {annex.map((a, i) => (
+                                        <tr key={i} className="dark:bg-gray-700">
+                                            <td className="border dark:border-gray-600 p-2">
+                                                <select
+                                                    className="border rounded p-1 w-full dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+                                                    value={a.type}
+                                                    onChange={(e) => updateAnnex(i, "type", e.target.value)}
+                                                    onKeyDown={(e) => handleCtrlEnter(e, addAnnex)}
+                                                >
+                                                    <option>Input</option>
+                                                    <option>Output</option>
+                                                    <option>CAN Msg</option>
+                                                    <option>Pin</option>
+                                                    <option>Other</option>
+                                                </select>
+                                            </td>
+                                            <td className="border dark:border-gray-600 p-2">
+                                                <input
+                                                    className="border rounded p-1 w-full dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+                                                    value={a.name}
+                                                    onChange={(e) => updateAnnex(i, "name", e.target.value)}
+                                                    onKeyDown={(e) => handleCtrlEnter(e, addAnnex)}
+                                                />
+                                            </td>
+                                            <td className="border dark:border-gray-600 p-2">
+                                                <textarea
+                                                    className="req-description-textarea border rounded p-1 w-full dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+                                                    value={a.description}
+                                                    onChange={(e) => updateAnnex(i, "description", e.target.value)}
+                                                    onKeyDown={(e) => handleCtrlEnter(e, addAnnex)}
+                                                    placeholder="Description...&#10;(supports multiple lines)"
+                                                    rows={2}
+                                                />
+                                            </td>
+                                            <td className="border dark:border-gray-600 p-2 text-center">
+                                                <button onClick={() => deleteAnnex(i)} className="text-red-500 font-bold hover:text-red-700">×</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                                <button onClick={addAnnex} className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 px-2 py-1 rounded mb-6">+ Add Annex Entry</button>
+
+                                <div className="text-right border-t dark:border-gray-700 pt-4 mt-4">
+                                    <button
+                                        disabled={hasDuplicates}
+                                        onClick={sendToEditor}
+                                        className={`px-6 py-3 rounded-lg text-white font-medium ${hasDuplicates ? "bg-gray-400 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"}`}
+                                    >
+                                        Edit in Markdown Editor →
+                                    </button>
+                                    {hasDuplicates && <p className="text-red-400 text-sm mt-1">⚠ Fix duplicate IDs before continuing</p>}
+                                </div>
+                            </div>
+
+                            {/* Live Preview Panel for Form */}
+                            <div className="bg-white dark:bg-gray-800 shadow-lg rounded-xl flex flex-col max-h-[calc(100vh-180px)] sticky top-[140px]">
+                                <div className="p-3 border-b dark:border-gray-700 flex items-center justify-between">
+                                    <h2 className="font-semibold text-lg">👁️ Live Preview</h2>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">Updates as you type</span>
+                                </div>
+                                <div
+                                    className="preview-content flex-1 p-4 overflow-auto dark:text-gray-100"
+                                    dangerouslySetInnerHTML={{ __html: formPreviewHtml }}
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        /* EDITOR VIEW */
+                        <div className="max-w-7xl mx-auto flex flex-col min-h-[calc(100vh-140px)]">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 mb-4">
+                                {/* Editor Panel */}
+                                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col overflow-hidden">
+                                    <div className="p-3 border-b dark:border-gray-700 flex items-center justify-between">
+                                        <h2 className="font-semibold text-lg">✏️ Markdown Editor</h2>
+                                        <div className="text-sm text-gray-500">
+                                            {markdownContent.length} chars
+                                        </div>
+                                    </div>
+                                    <textarea
+                                        ref={editorRef}
+                                        className="editor-textarea flex-1 p-4 w-full resize-none focus:outline-none dark:bg-gray-900 dark:text-gray-100 rounded-b-xl"
+                                        value={markdownContent}
+                                        onChange={(e) => setMarkdownContent(e.target.value)}
+                                        onKeyDown={handleEditorKeyDown}
+                                        placeholder="Start typing your markdown here..."
+                                        spellCheck={false}
+                                    />
+                                </div>
+
+                                {/* Preview Panel */}
+                                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col overflow-hidden">
+                                    <div className="p-3 border-b dark:border-gray-700">
+                                        <h2 className="font-semibold text-lg">👁️ Live Preview</h2>
+                                    </div>
+                                    <div
+                                        className="preview-content flex-1 p-4 overflow-auto dark:text-gray-100"
+                                        dangerouslySetInnerHTML={{ __html: previewHtml }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Quick Actions - Always placed below the editor/preview containers */}
+                            <div className="mt-4 flex gap-2 flex-wrap">
+                                <button
+                                    onClick={() => setViewMode('form')}
+                                    className="px-6 py-3 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700"
+                                >
+                                    ← Back to Form
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

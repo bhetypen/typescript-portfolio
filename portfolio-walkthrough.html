@@ -1,0 +1,404 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TS Portfolio: Code Walkthrough</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: "Space Grotesk", sans-serif; }
+    .panel { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border: 1px solid rgba(226,232,240,0.7); }
+    .nav-pill.active { color: #f59e0b; border-bottom: 2px solid #f59e0b; font-weight: 700; }
+    .code { font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace; background: #0f172a; color: #e2e8f0; }
+    .chart-box { max-width: 520px; height: 240px; margin: 0 auto; }
+    .pulse { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.35);} 70% { box-shadow: 0 0 0 18px rgba(245,158,11,0);} 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0);} }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+  <div class="min-h-screen flex flex-col">
+    <header class="bg-white/90 border-b border-slate-200 sticky top-0 z-40">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="h-16 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded bg-amber-500 text-white font-black grid place-items-center">TS</div>
+            <div>
+              <div class="text-xl font-bold">TS Portfolio</div>
+              <div class="text-xs text-slate-500">Neon Konva hero · React Router 7 · Tailwind 4</div>
+            </div>
+          </div>
+          <div class="text-sm text-slate-500 hidden sm:block">Architecture & Logic Walkthrough</div>
+        </div>
+        <nav id="main-nav" class="flex gap-8 -mb-px overflow-x-auto text-sm">
+          <button class="nav-pill active py-3" onclick="switchTab('overview')">Overview</button>
+          <button class="nav-pill py-3" onclick="switchTab('architecture')">Architecture</button>
+          <button class="nav-pill py-3" onclick="switchTab('logic')">Core Logic</button>
+          <button class="nav-pill py-3" onclick="switchTab('flow')">Data Flow</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+      <!-- OVERVIEW -->
+      <section id="view-overview" class="space-y-8">
+        <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-600 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
+          <div class="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.08),transparent_30%)]"></div>
+          <div class="relative">
+            <h2 class="text-3xl font-black mb-3">Interactive portfolio built like a game map.</h2>
+            <p class="text-slate-200 max-w-3xl mb-6">Konva-powered neon hotspots drive navigation to background, projects, tools, and games. React Router 7 stitches the pages together, and Radix Tabs keep filters and work history snappy without servers or APIs.</p>
+            <div class="flex flex-wrap gap-4">
+              <div class="panel px-4 py-3 rounded-xl shadow-sm">
+                <div class="text-xs text-slate-500 uppercase">Stack</div>
+                <div class="font-semibold text-slate-900">React 19 · TypeScript · Tailwind 4 · Vite</div>
+              </div>
+              <div class="panel px-4 py-3 rounded-xl shadow-sm">
+                <div class="text-xs text-slate-500 uppercase">Runtime</div>
+                <div class="font-semibold text-slate-900">Client-only · Static data arrays</div>
+              </div>
+              <div class="panel px-4 py-3 rounded-xl shadow-sm">
+                <div class="text-xs text-slate-500 uppercase">Routing</div>
+                <div class="font-semibold text-slate-900">React Router 7 pages + Toaster</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="panel p-6 rounded-xl shadow-sm">
+            <div class="w-12 h-12 rounded-lg bg-amber-100 text-amber-700 grid place-items-center text-xl mb-3">✨</div>
+            <h3 class="font-bold text-lg">Konva hero map</h3>
+            <p class="text-sm text-slate-600">Neon polygons, custom cursor, and flicker tweens define clickable areas that trigger navigation callbacks.</p>
+          </div>
+          <div class="panel p-6 rounded-xl shadow-sm">
+            <div class="w-12 h-12 rounded-lg bg-indigo-100 text-indigo-700 grid place-items-center text-xl mb-3">🧭</div>
+            <h3 class="font-bold text-lg">Router + tabs</h3>
+            <p class="text-sm text-slate-600">Top-level router mounts Home, Projects, Tools, Games, and Privacy with tabbed sub-navigation for filtering.</p>
+          </div>
+          <div class="panel p-6 rounded-xl shadow-sm">
+            <div class="w-12 h-12 rounded-lg bg-emerald-100 text-emerald-700 grid place-items-center text-xl mb-3">🎮</div>
+            <h3 class="font-bold text-lg">Games surface</h3>
+            <p class="text-sm text-slate-600">Dedicated Games route with Paper Fold War modes: local versus and online rooms mounted under React Router.</p>
+          </div>
+          <div class="panel p-6 rounded-xl shadow-sm">
+            <h4 class="font-semibold text-sm text-slate-500 uppercase mb-3 text-center">Composition</h4>
+            <div class="chart-box"><canvas id="codeChart"></canvas></div>
+            <p class="text-[11px] text-center text-slate-500 mt-2">Estimated footprint of UI, interaction logic, and data config.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ARCHITECTURE -->
+      <section id="view-architecture" class="hidden space-y-6">
+        <div class="panel p-6 rounded-2xl shadow-sm">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-900">Single-page shell with routed subpages</h2>
+              <p class="text-slate-600 max-w-3xl">Vite serves the React 19 bundle. <code class="code px-2 py-1 rounded text-xs">App.tsx</code> registers routes, while feature pages stay componentized (Konva hero, Radix timelines, filterable projects, games).</p>
+            </div>
+            <div class="flex gap-2 text-xs text-slate-700">
+              <span class="px-3 py-1 rounded-full bg-slate-900 text-white">Client-only</span>
+              <span class="px-3 py-1 rounded-full bg-amber-100 text-amber-700">No build-time CMS</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+            <div class="bg-slate-900 text-white rounded-xl p-5 shadow-lg">
+              <div class="text-sm text-slate-400 mb-2">Entry</div>
+              <div class="font-mono text-sm leading-relaxed">src/App.tsx<br/>└── Navbar / Footer<br/>└── Routes → Home, Projects, Tools, Games, Privacy<br/>└── Toaster (react-hot-toast)</div>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+              <div class="text-sm text-slate-500 mb-2">Home</div>
+              <ul class="text-sm text-slate-700 space-y-2">
+                <li><strong>PortfolioCover.tsx</strong> — Konva stage, neon polygons, custom cursor, tween flicker.</li>
+                <li><strong>BackgroundTabs.tsx</strong> — Radix Tabs over work/education arrays.</li>
+                <li><strong>FeaturedProjects.tsx</strong> — card grid highlighting key builds.</li>
+              </ul>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+              <div class="text-sm text-slate-500 mb-2">Supporting pages</div>
+              <ul class="text-sm text-slate-700 space-y-2">
+                <li><strong>Projects.tsx</strong> — tab + search + tag select with memoized filters.</li>
+                <li><strong>Tools.tsx</strong> — static cards describing stacks with Lucide icons.</li>
+                <li><strong>Games</strong> routes — Paper Fold War (local + online) mounted via Router.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="panel p-6 rounded-xl shadow-sm">
+            <h3 class="font-bold text-lg mb-2">Why Konva?</h3>
+            <p class="text-sm text-slate-600">HTML hitboxes alone could not match the illustrated hero map. Konva lets the app draw polygons, control opacity, and trigger tweens for glow and hover states while keeping React state in sync.</p>
+          </div>
+          <div class="panel p-6 rounded-xl shadow-sm">
+            <h3 class="font-bold text-lg mb-2">State storage</h3>
+            <p class="text-sm text-slate-600">All data lives in local arrays (workExperience.ts, education.ts, projects.ts). No API calls or database; deployable as a static bundle.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CORE LOGIC -->
+      <section id="view-logic" class="hidden space-y-4">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-bold">Core logic slices</h2>
+            <p class="text-slate-600">Four hotspots of logic carry most of the behavior.</p>
+          </div>
+          <div class="text-xs text-slate-500 italic">Click a card to expand</div>
+        </div>
+
+        <div class="space-y-3">
+          <article class="panel rounded-xl shadow-sm overflow-hidden cursor-pointer" onclick="toggleCard('logic1')">
+            <div class="p-5 flex items-center justify-between bg-slate-50">
+              <div class="flex items-center gap-3">
+                <span class="w-10 h-10 rounded-lg bg-amber-500 text-white grid place-items-center font-bold">Fn</span>
+                <div>
+                  <div class="font-mono font-bold">PortfolioCover → Konva flicker & hotspots</div>
+                  <p class="text-sm text-slate-600">Custom cursor, polygon hit detection, and timed neon tweens.</p>
+                </div>
+              </div>
+              <div id="arrow-logic1" class="text-amber-600">▼</div>
+            </div>
+            <div id="logic1" class="hidden border-t border-slate-100">
+              <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="text-sm text-slate-700 space-y-3">
+                  <p>Hotspots are defined as point arrays. <code class="code px-1 rounded text-xs">getBounds()</code> derives text placement. Hover events call <code class="code px-1 rounded text-xs">line.to()</code> for instant glow changes.</p>
+                  <p>Timed tweens run every few seconds for each polygon, creating the arcade-like flicker. Click handlers map IDs to navigation callbacks (work, education, contact, tools, projects).</p>
+                </div>
+                <pre class="code text-xs p-4 rounded-lg overflow-auto leading-relaxed">// hover feedback
+line.to({
+  opacity: isHover ? 0.98 : 0.7,
+  shadowBlur: isHover ? 28 : 12,
+  duration: 0.08,
+});
+
+// per-hotspot flicker timer
+setInterval(() => {
+  new Konva.Tween({ node: line, opacity: 0.62 + Math.random()*0.12 }).play();
+}, 2300);</pre>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel rounded-xl shadow-sm overflow-hidden cursor-pointer" onclick="toggleCard('logic2')">
+            <div class="p-5 flex items-center justify-between bg-slate-50">
+              <div class="flex items-center gap-3">
+                <span class="w-10 h-10 rounded-lg bg-indigo-500 text-white grid place-items-center font-bold">Fn</span>
+                <div>
+                  <div class="font-mono font-bold">ProjectsTabs → search & tag filter</div>
+                  <p class="text-sm text-slate-600">URL-driven tab, memoized filters, and resilient defaults.</p>
+                </div>
+              </div>
+              <div id="arrow-logic2" class="text-indigo-600">▼</div>
+            </div>
+            <div id="logic2" class="hidden border-t border-slate-100">
+              <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="text-sm text-slate-700 space-y-3">
+                  <p>Initial tab is read from <code class="code px-1 rounded text-xs">?tab=frontend|fullstack</code>; effect keeps state synced if the URL changes.</p>
+                  <p><code class="code px-1 rounded text-xs">useMemo</code> builds a tag set and filters by free-text query (title, description, tags) plus tag selection, preventing extra re-renders.</p>
+                </div>
+                <pre class="code text-xs p-4 rounded-lg overflow-auto leading-relaxed">const filtered = useMemo(() => {
+  const ql = q.trim().toLowerCase();
+  return data.filter(p => {
+    const matchesQ = !ql ||
+      p.title.toLowerCase().includes(ql) ||
+      p.description.toLowerCase().includes(ql) ||
+      p.tags?.some(t => t.toLowerCase().includes(ql));
+    const matchesTag = !tag || p.tags?.includes(tag);
+    return matchesQ && matchesTag;
+  });
+}, [q, tag, data]);</pre>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel rounded-xl shadow-sm overflow-hidden cursor-pointer" onclick="toggleCard('logic3')">
+            <div class="p-5 flex items-center justify-between bg-slate-50">
+              <div class="flex items-center gap-3">
+                <span class="w-10 h-10 rounded-lg bg-emerald-500 text-white grid place-items-center font-bold">Fn</span>
+                <div>
+                  <div class="font-mono font-bold">BackgroundTabs → timeline layout</div>
+                  <p class="text-sm text-slate-600">Radix tabs over static arrays with square timeline primitives.</p>
+                </div>
+              </div>
+              <div id="arrow-logic3" class="text-emerald-600">▼</div>
+            </div>
+            <div id="logic3" class="hidden border-t border-slate-100">
+              <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="text-sm text-slate-700 space-y-3">
+                  <p>Tabs swap between <code class="code px-1 rounded text-xs">workExperience</code> and <code class="code px-1 rounded text-xs">education</code> arrays. Timeline items use a shared vertical rail and square avatar initials derived from the company or institution.</p>
+                  <p>Data-only structure keeps content editable without touching component logic.</p>
+                </div>
+                <pre class="code text-xs p-4 rounded-lg overflow-auto leading-relaxed">function initials(name) {
+  return name.split(/\s+/)
+    .filter(Boolean)
+    .slice(0,2)
+    .map(part => part[0]?.toUpperCase() ?? "")
+    .join("");
+}</pre>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel rounded-xl shadow-sm overflow-hidden cursor-pointer" onclick="toggleCard('logic4')">
+            <div class="p-5 flex items-center justify-between bg-slate-50">
+              <div class="flex items-center gap-3">
+                <span class="w-10 h-10 rounded-lg bg-rose-500 text-white grid place-items-center font-bold">Fn</span>
+                <div>
+                  <div class="font-mono font-bold">PaperFoldWar → local/online modes</div>
+                  <p class="text-sm text-slate-600">Router-mounted game pages with shared engine for moves and state sync.</p>
+                </div>
+              </div>
+              <div id="arrow-logic4" class="text-rose-600">▼</div>
+            </div>
+            <div id="logic4" class="hidden border-t border-slate-100">
+              <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="text-sm text-slate-700 space-y-3">
+                  <p><code class="code px-1 rounded text-xs">/games/paper-fold-war</code> loads the local engine; the online version mounts under <code class="code px-1 rounded text-xs">/games/paper-fold-war/online/:roomId</code>.</p>
+                  <p>State for hands/turns is held in React; online mode adds room param handling and network sync logic (Supabase-style or socket-ready).</p>
+                </div>
+                <pre class="code text-xs p-4 rounded-lg overflow-auto leading-relaxed">const { roomId } = useParams();
+useEffect(() => {
+  if (!roomId) return;
+  // subscribe to room updates and merge into local turn state
+}, [roomId]);
+
+function playMove(move) {
+  setState(s => applyMove(s, move));
+  if (roomId) publishMove(roomId, move);
+}</pre>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- DATA FLOW -->
+      <section id="view-flow" class="hidden space-y-6">
+        <div class="panel p-6 rounded-2xl shadow-sm">
+          <h2 class="text-2xl font-bold mb-3">Data flow snapshots</h2>
+          <p class="text-slate-600 mb-6">Two main flows: hero hotspot navigation and project filtering. Buttons below animate each hop.</p>
+
+          <div class="max-w-4xl mx-auto bg-slate-100 rounded-xl border border-slate-200 p-6 flex flex-col gap-6">
+            <div class="grid grid-cols-3 gap-3 text-center text-sm font-semibold text-slate-700">
+              <div id="node-hero" class="bg-white border border-slate-300 rounded-lg p-3">Konva Hero</div>
+              <div id="node-router" class="bg-white border border-slate-300 rounded-lg p-3">React Router</div>
+              <div id="node-page" class="bg-white border border-slate-300 rounded-lg p-3">Page Component</div>
+            </div>
+            <div class="h-2 w-full bg-slate-300 rounded-full relative overflow-hidden">
+              <div id="flow-bar" class="absolute left-0 top-0 h-full w-1/3 bg-amber-500 rounded-full opacity-0"></div>
+            </div>
+            <div id="flow-status" class="text-center text-xs font-mono text-slate-600">Ready...</div>
+            <div class="flex flex-wrap gap-3 justify-center">
+              <button class="px-4 py-2 bg-amber-500 text-black font-semibold rounded-lg shadow hover:shadow-lg transition" onclick="simulateFlow('hero')">Click neon hotspot</button>
+              <button class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow hover:shadow-lg transition" onclick="simulateFlow('filter')">Filter projects</button>
+            </div>
+          </div>
+
+          <div class="mt-6 bg-amber-50 border border-amber-200 text-amber-800 text-sm p-4 rounded-lg">
+            <strong>Loop safety:</strong> Navigation callbacks are plain functions passed from Home into PortfolioCover; no effect dependencies or external observers, so clicking hotspots simply invokes <code class="code px-1 rounded text-xs">useNavigate</code> targets without feedback loops.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // tab switching
+    function switchTab(id) {
+      ["overview","architecture","logic","flow"].forEach((key) => {
+        const view = document.getElementById(`view-${key}`);
+        if (view) view.classList.toggle("hidden", key !== id);
+      });
+      document.querySelectorAll(".nav-pill").forEach((btn) => btn.classList.remove("active"));
+      const btn = Array.from(document.querySelectorAll(".nav-pill")).find((b) => b.textContent.toLowerCase().includes(id === "flow" ? "flow" : id));
+      if (btn) btn.classList.add("active");
+      if (id === "overview") initChart();
+    }
+
+    // chart.js setup
+    let chart;
+    function initChart() {
+      if (chart) return;
+      const ctx = document.getElementById("codeChart");
+      if (!ctx) return;
+      chart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["UI/visuals", "Interaction logic", "Data config"],
+          datasets: [{
+            data: [45, 35, 20],
+            backgroundColor: ["#0ea5e9", "#f59e0b", "#cbd5e1"],
+            borderWidth: 0,
+            hoverOffset: 6,
+          }],
+        },
+        options: {
+          responsive: true,
+          cutout: "65%",
+          plugins: { legend: { position: "right", labels: { font: { size: 11 } } } },
+        },
+      });
+    }
+    setTimeout(initChart, 600);
+
+    // accordion toggles
+    function toggleCard(id) {
+      const body = document.getElementById(id);
+      const arrow = document.getElementById(`arrow-${id}`);
+      if (!body || !arrow) return;
+      const isHidden = body.classList.contains("hidden");
+      body.classList.toggle("hidden", !isHidden ? true : false);
+      arrow.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+    }
+
+    // data flow simulator
+    function simulateFlow(kind) {
+      const status = document.getElementById("flow-status");
+      const bar = document.getElementById("flow-bar");
+      const hero = document.getElementById("node-hero");
+      const router = document.getElementById("node-router");
+      const page = document.getElementById("node-page");
+      [hero, router, page].forEach((el) => el && el.classList.remove("pulse", "border-amber-500", "border-indigo-500"));
+      if (!status || !bar || !hero || !router || !page) return;
+
+      bar.style.transition = "none";
+      bar.style.left = "0%";
+      bar.style.opacity = "0";
+
+      if (kind === "hero") {
+        status.textContent = "Hotspot click → onClick handler";
+        hero.classList.add("pulse", "border-amber-500");
+        setTimeout(() => {
+          status.textContent = "hotspotAction(id) resolves destination";
+          bar.style.opacity = "1"; bar.style.transition = "all 0.6s ease"; bar.style.left = "33%";
+          setTimeout(() => {
+            status.textContent = "useNavigate routes to /projects or /contact";
+            hero.classList.remove("pulse"); router.classList.add("pulse", "border-amber-500");
+            bar.style.left = "66%";
+            setTimeout(() => {
+              status.textContent = "Target page renders with tabs/cards";
+              router.classList.remove("pulse"); page.classList.add("pulse", "border-amber-500");
+              bar.style.left = "100%";
+            }, 600);
+          }, 600);
+        }, 200);
+      } else {
+        status.textContent = "User types in search input";
+        page.classList.add("pulse", "border-indigo-500");
+        setTimeout(() => {
+          status.textContent = "setQ + setTag update state";
+          bar.style.opacity = "1"; bar.style.backgroundColor = "#4f46e5"; bar.style.left = "50%"; bar.style.transition = "all 0.6s ease";
+          setTimeout(() => {
+            status.textContent = "useMemo recomputes filtered[]";
+            bar.style.left = "100%";
+          }, 650);
+        }, 200);
+      }
+    }
+  </script>
+</body>
+</html>
